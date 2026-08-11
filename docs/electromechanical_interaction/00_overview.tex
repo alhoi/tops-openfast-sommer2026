@@ -1,0 +1,63 @@
+% =====================================================================
+%  Samle-mappe: elektromekaniske interaksjoner mellom vindturbinen
+%  (IEA 15 MW) og LEOGO-plattformnettet.
+%
+%  Denne fila (00_overview.tex) er en INDEKS/leserekkefølge. Den samler de
+%  nye seksjonene som ble skrevet i etterkant av overleveringsnotatet
+%  (docs/STATUS_OG_VEIVALG.md), og knytter dem til de eksisterende
+%  seksjonene i ../ (docs/).
+%
+%  Bruk: enten \input hver enkelt fil i hoveddokumentet i rekkefølgen under,
+%  eller \input denne fila direkte (den \input-er resten).
+%
+%  Preamble (kreves av alle filene her):
+%    \usepackage{amsmath, amssymb}
+%    \usepackage{graphicx}
+%    \usepackage{booktabs}
+%    \usepackage{siunitx}
+%    \DeclareSIUnit{\pu}{pu}   % per-unit, brukt av \SI{}{\pu} i disse filene
+%    \usepackage{hyperref}     % for kilde-lenkene (\href) i Sources-blokkene
+%
+%  Figurstier: figurene ligger i ../results/tower_test/ (PNG). Kopier dem til
+%  ditt \graphicspath, eller juster \includegraphics-stiene i hver fil.
+% =====================================================================
+
+% ---------------------------------------------------------------------
+%  Leserekkefølge (elektromekanisk interaksjon)
+% ---------------------------------------------------------------------
+%
+%  Eksisterende seksjoner (i ../, uendret):
+%    1. frequency_analysis.tex          \label{sec:frequency-analysis}
+%    2. forced_response.tex             \label{sec:forcedresponse}
+%    3. drivetrain_torsion_resonance.tex\label{sec:fmu-torsion-resonance}
+%    4. openfast_excitation.tex         \label{sec:openfast-excitation}
+%    5. network_excitation.tex          \label{sec:network-excitation}
+%    6. tower_ss_resonance.tex          \label{sec:tower-ss-resonance}
+%
+%  Nye seksjoner (denne mappen), i anbefalt rekkefølge:
+%    0. narrative.tex                   \label{sec:narrative}   (rød tråd, les først)
+%    7. simplified_tower_model.tex      \label{sec:simplified-tower-model}
+%    8. rosco_blocking.tex              \label{sec:rosco-blocking}
+%    9. shaft_excitation.tex            \label{sec:shaft-excitation}
+%   10. outer_droop.tex                 \label{sec:outer-droop}
+%   11. outer_droop_necessity.tex       \label{sec:outer-droop-necessity}
+%   12. new_tests.tex                   \label{sec:new-tests}
+%
+%  De nye seksjonene bygger på den REDUSERTE (FMU-frie) modellen
+%  WindTurbineTower, som samler drivverk + tårn-SS + tårn-fore-aft i én
+%  billig TOPS-modell. Der de eksisterende FMU-seksjonene viser at koblingen
+%  finnes i høy-fidelitet, viser de nye seksjonene at den kan drives, styres
+%  og resonans-testes systematisk i sanntid mot hele LEOGO-nettet.
+%
+%  narrative.tex er en kort kronologisk "rød tråd" (4 faser) til poster/pitch:
+%  Fase 1 = droop-kontroll + laststeg i LEOGO-nettet (starten); Fase 4 lukker
+%  sirkelen tilbake til droopen (frekvensstøtte-/tårnlast-avveiningen). Les først.
+% ---------------------------------------------------------------------
+
+\input{narrative}
+\input{simplified_tower_model}
+\input{rosco_blocking}
+\input{shaft_excitation}
+\input{outer_droop}
+\input{outer_droop_necessity}
+\input{new_tests}

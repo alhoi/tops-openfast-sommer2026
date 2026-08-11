@@ -1,6 +1,6 @@
 from tops.dyn_models.blocks import DAEModel, PIRegulator, TimeConstant
 from tops.dyn_models.pll import PLL1
-from .UIC import UIC_sig
+from .UIC import UIC_sig, UIC_sig2  # expose UIC_sig / UIC_sig2 so the model loader can find them
 from .UIC_pq import UIC_sig_pq  # expose UIC_sig_pq in the vsc module so dynamic model loader can find it
 import numpy as np
 

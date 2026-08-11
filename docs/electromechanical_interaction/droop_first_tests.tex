@@ -1,0 +1,250 @@
+% ============================================================
+% droop_first_tests.tex
+% Rapport: Foerste tester av den ytre frekvensstoette-droopen (Fase 1)
+% Frittstaaende dokument for oversikt (student + veileder).
+% Bygg:  pdflatex droop_first_tests.tex   (kjoer fra denne mappa)
+% Figurer hentes fra diagnostic_plots via \graphicspath nedenfor.
+%
+% NB (avklart 2026-07-28):
+%   - "Ti" = UIC-ens interne-spennings frekvensfilter T_filter (UIC.py):
+%     Told = 0.1 s, Tnew = 0.01 s. MERK: T_filter paavirker kun dynamikken naar
+%     perfect_tracking = 1; naavaerende build_model har perfect_tracking = 0, saa
+%     disse figurene maa vaere kjoert med perfect_tracking = 1 (bekreft).
+%   - K_droop = 0.50 pu/Hz (drivers default; build_model har 0.75 men overstyres).
+%     headroom = 0.05 pu (= 1 MW paa 20 MVA UIC-base), f_nom = 50 Hz.
+% ============================================================
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=25mm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{hyperref}
+
+\DeclareSIUnit{\pu}{pu}
+
+% Figurer ligger utenfor docs/, i resultat-treet. Juster ved behov.
+\graphicspath{{../../casestudies/dyn_sim/results/diagnostic_plots/}}
+
+\title{First Tests of the Outer Wind-Turbine\\ Frequency-Support Droop on the LEOGO Grid}
+\author{Summer project 2026 --- work log for supervisor review}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This note documents the \emph{first} set of tests carried out with the
+outer wind-turbine (WT) frequency-support droop, run on the islanded LEOGO
+grid. The purpose is a shared overview of \emph{what was actually done} and
+\emph{what the results show}, not a full tuning study. A de-loaded reduced WT,
+coupled to the grid through the Unified Impedance Converter (UIC), is compared
+with and without the droop for a series of grid load steps. The tests confirm
+that the reserved headroom is released as extra active power during
+under-frequency, and that a controller retuning (labelled \texttt{OldTi} vs
+\texttt{NewTi}) mainly improves the transient damping without changing the
+steady frequency-support gain. This establishes the Phase-1 baseline for the
+later drivetrain- and tower-loading studies.
+\end{abstract}
+
+% ------------------------------------------------------------
+\section{Purpose and scope}
+\label{sec:dft-purpose}
+These were the first experiments in the project. The question was simple: can a
+de-loaded wind turbine, connected through the grid-forming UIC, release its
+reserve to support the frequency of the small islanded LEOGO network when the
+grid load suddenly increases? The tests were designed to (i) verify the intended
+droop action, (ii) record the full electromechanical response (converter,
+drivetrain, pitch), and (iii) provide a clean baseline against which the later
+mechanical-loading trade-off is measured. This is a work log, so the emphasis is
+on the test matrix and the qualitative behaviour rather than on parameter
+optimisation.
+
+% ------------------------------------------------------------
+\section{Model and experimental setup}
+\label{sec:dft-setup}
+The plant is a reduced wind-turbine model (two-mass drivetrain, pitch
+controller, and maximum-power-tracking generator-torque law) coupled to the
+islanded LEOGO network through the UIC grid-forming converter. The grid
+frequency seen by the turbine is the centre-of-inertia (COI) frequency of the
+synchronous machines, i.e.\ an inertia-weighted average of their speeds, fed
+back to the WT droop as \(f_{grid}\).
+
+Each test runs a \emph{matched pair}:
+\begin{itemize}
+  \item \textbf{droop off} --- de-loaded, no frequency response;
+  \item \textbf{droop on} --- same de-loading, frequency response enabled.
+\end{itemize}
+Both cases are de-loaded by the \emph{same} headroom reserve, so the pre-event
+operating point is identical and the only difference is the droop action. The
+control law (documented in \texttt{outer\_droop.tex}) is
+\begin{align}
+  P_{base} &= \operatorname{clip}\!\big(P_{avail}-P_{hr},\,0,\,P_{avail}\big),\\
+  \Delta P &= K_{droop}\,(f_{nom}-f_{grid}),
+\end{align}
+so under-frequency (\(f_{grid}<f_{nom}\)) commands additional active power
+\(\Delta P>0\) up to the reserved headroom \(P_{hr}\). The driver script is
+\texttt{test\_WT\_LEOGO\_droop\_comparison\_diagnostics.py}.
+
+The droop parameters, referred to the \SI{20}{\mega\voltampere} UIC base, are
+\(f_{nom}=\SI{50}{\hertz}\), a headroom reserve
+\(P_{hr}=\SI{0.05}{\pu}\;(\approx\SI{1}{\mega\watt})\), and a droop gain
+\(K_{droop}=\SI{0.50}{\pu\per\hertz}\) (the comparison-driver default;
+\texttt{build\_model} in \texttt{test\_WT\_LEOGO\_sim.py} configures
+\SI{0.75}{\pu\per\hertz}, but the driver overrides it). As shown below, for the
+\SI{5}{\mega\watt} step the droop saturates at the headroom, so the steady
+response is set by \(P_{hr}\) and is insensitive to this gain.
+
+% ------------------------------------------------------------
+\section{Test matrix}
+\label{sec:dft-matrix}
+A grid load step is applied at \(t\approx\SI{5}{\second}\), held for about
+\SI{50}{\second}, in a run of roughly \SI{200}{\second}. For every case four time
+windows are exported: the full timeline, a zoom around load application, a zoom
+around load removal, and one additional window. Two step magnitudes, two step
+profiles, and two controller tunings are combined (Table~\ref{tab:dft-matrix}).
+A separate set of runs uses a sinusoidal load (\SI{1.2}{\hertz}, small
+amplitude) as a forced-response probe.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Load-step test cases. Each case is run droop-off and droop-on, and
+           stored under \texttt{diagnostic\_plots/}.}
+  \label{tab:dft-matrix}
+  \begin{tabular}{llll}
+    \toprule
+    Step [\si{\mega\watt}] & Profile & Tuning & Folder \\
+    \midrule
+    1 & abrupt & OldTi & \texttt{1MWAbrupt\_OldTi}\\
+    1 & abrupt & NewTi & \texttt{1MWAbrupt\_NewTi}\\
+    1 & smooth & OldTi & \texttt{1MWSmooth\_OldTi}\\
+    1 & smooth & NewTi & \texttt{1MWSmooth\_NewTi}\\
+    5 & abrupt & OldTi & \texttt{5MWAbrupt\_OldTi}\\
+    5 & abrupt & NewTi & \texttt{5MWAbrupt\_NewTi}\\
+    5 & smooth & OldTi & \texttt{5MWSmooth\_OldTi}\\
+    5 & smooth & NewTi & \texttt{5MWSmooth\_NewTi}\\
+    \midrule
+    \multicolumn{4}{l}{Sinusoidal-load probes: \texttt{Sine\_1.2Hz*}, \texttt{SInus\_load}}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\noindent Here \emph{abrupt} is an (essentially) ideal step and \emph{smooth} is
+a ramped step. \texttt{OldTi} and \texttt{NewTi} denote two settings of the UIC
+internal-voltage frequency-filter time constant \(T_{filter}\)
+(\texttt{OldTi}: \(\SI{0.1}{\second}\); \texttt{NewTi}: \(\SI{0.01}{\second}\));
+its effect is discussed in Section~\ref{sec:dft-tuning}.
+
+% ------------------------------------------------------------
+\section{Diagnostics recorded}
+\label{sec:dft-diag}
+Fifteen signal families are logged per case and exported as comparison plots
+(droop-off vs droop-on). Grouped, they are:
+\begin{enumerate}
+  \item converter active power, and the isolated droop contribution;
+  \item the power chain \(P_{aero}\rightarrow P_{e}\rightarrow P_{ref}\);
+  \item torque balance and net (accelerating) torque;
+  \item drivetrain speeds (rotor and generator);
+  \item pitch error, pitch position, pitch rate;
+  \item converter terminal voltage, current magnitude and angle;
+  \item bus power vs WT-torque power, and bus-power tracking.
+\end{enumerate}
+
+% ------------------------------------------------------------
+\section{Results and observations}
+\label{sec:dft-results}
+
+\subsection{Frequency support is delivered}
+\label{sec:dft-support}
+Figure~\ref{fig:dft-power} (5\,MW abrupt, NewTi) shows the converter active
+power. Without droop it stays near \SI{0.140}{\pu} and only shows brief
+transients at load application and removal. With droop it rises to about
+\SI{0.1497}{\pu} while the grid is under-frequency, and returns after the load
+clears. Figure~\ref{fig:dft-contrib} isolates the droop contribution: the extra
+active power builds up to roughly \SI{+0.0097}{\pu} (system base) during the
+event and decays after clearing. This is the reserve being released from the
+headroom to arrest the frequency drop --- the intended behaviour. Note that this
+plateau (\(\approx\SI{0.0097}{\pu}\) on the \SI{100}{\mega\voltampere} system
+base, i.e.\ \(\approx\SI{1}{\mega\watt}\)) coincides with the full headroom
+reserve \(P_{hr}\): for a \SI{5}{\mega\watt} step the droop reaches its reserve
+limit, so the steady contribution is set by the headroom rather than by
+\(K_{droop}\) (the gain governs the ramp rate and the response to smaller steps,
+e.g.\ the \SI{1}{\mega\watt} cases).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.82\linewidth]{5MWAbrupt_NewTi/event_full/01_uic_active_power_comparison.png}
+  \caption{Converter active power, droop-off vs droop-on (5\,MW abrupt step,
+           NewTi). With droop the turbine releases extra power during the
+           under-frequency window.}
+  \label{fig:dft-power}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.82\linewidth]{5MWAbrupt_NewTi/event_full/02_droop_contribution_comparison.png}
+  \caption{Isolated droop contribution (5\,MW abrupt step, NewTi): about
+           \SI{+0.0097}{\pu} of additional active power during the load event,
+           decaying after the load is cleared.}
+  \label{fig:dft-contrib}
+\end{figure}
+
+\subsection{Matched operating point}
+\label{sec:dft-matched}
+Because both cases start from the identical de-loaded point, the difference
+between the two curves is purely the droop action. This clean isolation is the
+reason the tests use a headroom reserve even in the droop-off case.
+
+\subsection{Effect of the controller tuning: OldTi vs NewTi}
+\label{sec:dft-tuning}
+Comparing the same 5\,MW abrupt step with the two tunings
+(Figure~\ref{fig:dft-oldti} vs Figure~\ref{fig:dft-power}) shows that the
+retuning mainly changes the \emph{damping of the converter active-power
+transient} at load application and removal. With \texttt{OldTi} the power rings
+for several seconds after each step, whereas with \texttt{NewTi} it settles
+quickly. The two tunings differ only in the UIC internal-voltage frequency-filter
+time constant \(T_{filter}\) (\(\SI{0.1}{\second}\rightarrow\SI{0.01}{\second}\)):
+the shorter constant lets the converter's internal voltage track the frequency
+signal faster and damps the transient. Importantly, the \emph{steady} droop
+contribution (\(\approx\SI{0.0097}{\pu}\)) is essentially unchanged --- the
+retuning improves the transient behaviour without altering the frequency-support
+gain.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.82\linewidth]{5MWAbrupt_OldTi/event_full/01_uic_active_power_comparison.png}
+  \caption{Converter active power with the \texttt{OldTi} tuning (5\,MW abrupt
+           step). The transient at load on/off is markedly less damped than with
+           \texttt{NewTi} (Figure~\ref{fig:dft-power}); the steady droop support
+           is the same.}
+  \label{fig:dft-oldti}
+\end{figure}
+
+\subsection{Step size and profile}
+\label{sec:dft-size}
+A \SI{5}{\mega\watt} step produces a larger frequency deviation --- and hence a
+larger droop contribution --- than a \SI{1}{\mega\watt} step. The \emph{smooth}
+(ramped) profile reduces the transient spike relative to the \emph{abrupt} step
+while giving the same steady response. Across all cases the bus-power tracking
+plot confirms that the converter bus power follows its reference closely
+throughout the event.
+
+% ------------------------------------------------------------
+\section{Status and open items}
+\label{sec:dft-status}
+These first tests establish the Phase-1 baseline: a de-loaded wind turbine,
+connected through the UIC, provides measurable and controllable frequency
+support on the islanded LEOGO grid, and the \texttt{NewTi} retuning cleans up the
+converter transient without sacrificing support. Open items:
+\begin{itemize}
+  \item consistency check: \(T_{filter}\) only affects the dynamics when the UIC
+        \texttt{perfect\_tracking} feedback is enabled; the current
+        \texttt{build\_model} has it disabled, so these figures were presumably
+        produced with it enabled --- worth confirming before archiving;
+  \item the later phases quantify the drivetrain- and tower-loading \emph{cost}
+        of providing this frequency support.
+\end{itemize}
+
+\end{document}

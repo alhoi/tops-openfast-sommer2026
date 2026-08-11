@@ -1,0 +1,204 @@
+% =====================================================================
+%  Seksjon: Kontroller-blokkering -- hvorfor ROSCO hindrer at en
+%           nett-/elektrisk forstyrrelse eksiterer tarnmodene (side-to-side
+%           OG fore-aft) i den hoy-fidelitets OpenFAST+ROSCO-turbinen.
+%           Samler bevis-testene og forklarer blokkeringen mode-for-mode.
+%  Kilder:  docs/openfast_excitation.tex        (detaljert SS-behandling)
+%           docs/STATUS_OG_VEIVALG.md, kap. 2-3  (testtabell + rotarsak)
+%           test1002/ControlData/ROSCO.IEA15MW.IN (VSContrl, OL_Mode, TRA_Mode,
+%                                                   F_LPFCornerFreq)
+%  Preamble: amsmath, amssymb, graphicx, booktabs, siunitx, hyperref
+% =====================================================================
+
+\section{Controller Blocking: Why ROSCO Prevents Electrical Excitation of the Tower Modes}
+\label{sec:rosco-blocking}
+
+This project studies electro-mechanical interactions in offshore wind turbines
+coupled to a grid --- here an IEA \SI{15}{\mega\watt} turbine connected to the
+LEOGO islanded platform network. One such interaction is whether an
+electrical/grid disturbance can reach the turbine's structural tower modes. In
+the high-fidelity OpenFAST turbine that particular path fails: neither the
+side-to-side (SS) nor the fore-aft (FA) tower mode can be excited through any
+electrical input, because the ROSCO controller owns the one channel that would
+carry the disturbance into the structure. This section gathers
+the tests that established this negative result --- the tests that ``proved'' the
+blocking --- for \emph{both} tower modes, and explains mode-by-mode why the
+electrical path is closed. It is a pivot point of the methodology: it is precisely
+this blocking that motivates the ROSCO open-loop torque injection that bypasses it
+(\S\ref{subsec:se-openfast}) and the reduced \texttt{WindTurbineTower} whose
+electrical-to-mechanical path is open by construction
+(\S\ref{sec:simplified-tower-model}). The detailed SS experiment log lives in
+\S\ref{sec:openfast-excitation}; here the focus is the evidence and the causal
+argument.
+
+\subsection{The two candidate drive paths}
+\label{subsec:rb-paths}
+
+For a grid disturbance to reach a tower mode it must modulate one of two
+mechanical loads: the \emph{generator torque}, whose nacelle reaction moment rolls
+the nacelle laterally and bends the tower side to side; or the \emph{rotor
+thrust}, which bends the tower fore and aft. The two first tower modes are nearly
+degenerate in frequency
+(\(f_{\mathrm{ss}}\approx f_{\mathrm{fa}}\approx\SI{0.234}{\hertz}\)), so what
+decides whether an electrical disturbance can reach each of them is not the
+frequency but whether the disturbance can act on torque (for SS) or on thrust
+(for FA). Table~\ref{tab:rb-paths} states the mapping that the tests below probe.
+
+\begin{table}[t]
+  \centering
+  \caption{The two electrical-to-structure drive paths and the controller that
+  guards each in the OpenFAST-FMU (\texttt{VSContrl}=5).}
+  \label{tab:rb-paths}
+  \begin{tabular}{lll}
+    \toprule
+    Tower mode & Mechanical drive & Grid access in the FMU \\
+    \midrule
+    Side-to-side & generator torque \(T_e\) & only via ROSCO's torque command \\
+    Fore-aft     & rotor thrust \(F_T\)      & no electrical thrust channel at all \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+That the torque-to-tower coupling itself \emph{exists} in the model is not in
+doubt: ROSCO even ships a Tower Resonance Avoidance mode (\texttt{TRA\_Mode}) that
+deliberately modulates \emph{generator torque} to steer the rotor away from a
+tower frequency. The coupling is real; the question the tests answer is whether an
+\emph{external, electrically imposed} torque or thrust can use it.
+
+\subsection{Tests that closed the torque path (side-to-side)}
+\label{subsec:rb-torque}
+
+Three tests, each a baseline-versus-modulated comparison, established that the
+generator-torque channel is closed to external commands.
+
+\begin{enumerate}
+  \item \textbf{Generator-torque command} (\texttt{GenSpdOrTrq}). A commanded
+        torque modulation at the SS frequency left the simulated generator torque
+        \emph{bit-identical} to the unmodulated baseline --- the command has no
+        effect whatsoever.
+  \item \textbf{Electrical-power command} (\texttt{ElecPwrCom},
+        \(\pm\SI{20}{\percent}\) at \SI{0.236}{\hertz}). Ignored identically in
+        Region~2 (\SI{8}{\metre\per\second}) and Region~3: the \texttt{GenTq}
+        ripple and the SS acceleration envelope were indistinguishable from
+        baseline (\S\ref{subsec:of-electrical}, Table therein).
+  \item \textbf{Opening the external-torque path} (\texttt{VSContrl}=4). The one
+        configuration that would let an external torque become the actual
+        generator torque \emph{crashes} the FMU at the first \texttt{doStep}
+        (access-violation in the FMI call); the binary lacks the
+        Simulink/Labview pointer hookup and it is not fixable from configuration
+        (\S\ref{subsec:of-vscontrl4}).
+\end{enumerate}
+
+The cause is architectural. With \(\texttt{VSContrl}=5\) ROSCO computes the
+generator torque \emph{internally} from the measured generator speed --- in
+Region~2 the optimal law
+\begin{equation}
+  T_{\mathrm{gen}} = K_{\mathrm{opt}}\,\omega_g^2,
+  \label{eq:rb-komega2}
+\end{equation}
+and does not read the external \texttt{GenSpdOrTrq}/\texttt{ElecPwrCom} ports. The
+small torque ripple seen in the runs is ROSCO's own speed-reaction to the start-up
+transient, not a response to the command. Table~\ref{tab:rb-evidence} collects the
+evidence. The verdict for the torque path, and hence for the SS mode, is
+unambiguous: \emph{it is closed}.
+
+\begin{table}[t]
+  \centering
+  \caption{The controller-blocking evidence (OpenFAST-FMU, \texttt{VSContrl}=5).
+  Every electrical route into the generator torque is either ignored or crashes.}
+  \label{tab:rb-evidence}
+  \begin{tabular}{lll}
+    \toprule
+    Test & Result & Root cause \\
+    \midrule
+    Torque cmd.\ \texttt{GenSpdOrTrq}      & bit-identical \texttt{GenTq}        & ROSCO owns torque (\ref{eq:rb-komega2}) \\
+    Power cmd.\ \texttt{ElecPwrCom} \(\pm20\%\) & ignored, Region~2 \emph{and} 3 & same --- torque set internally \\
+    \texttt{VSContrl}=4 (ext.\ torque)     & crash at first \texttt{doStep}      & missing Simulink pointer; needs rebuild \\
+    ROSCO filters hiding SS?               & no (see \S\ref{subsec:rb-filters})  & filters shape response, not access \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Ruling out the ROSCO filters as the cause}
+\label{subsec:rb-filters}
+
+A natural suspicion is that the blocking is really a \emph{filtering} effect ---
+that ROSCO's low-pass and notch filters (\texttt{F\_LPFCornerFreq} and the tower
+notch used by the SS-damping / resonance-avoidance logic) are actively cancelling
+the SS excitation before it reaches the structure. This was tested and rejected.
+Those filters act only on the \emph{speed signal that ROSCO measures}, shaping
+\emph{how ROSCO responds}; they are not the reason the network fails to reach the
+SS mode. The disturbance is stopped one step earlier, at the torque command
+itself: because \(\texttt{VSContrl}=5\) makes the torque a pure function of
+measured speed \eqref{eq:rb-komega2}, the external command never enters the torque
+in the first place, so there is nothing for a notch filter to remove. The blocking
+is architectural, not spectral --- an important distinction, because it means no
+filter re-tuning could open the path; only a different converter interface could.
+
+\subsection{The fore-aft mode is doubly unreachable}
+\label{subsec:rb-foreaft}
+
+The fore-aft mode is blocked even more firmly than the side-to-side mode, for a
+different reason. FA is driven by rotor \emph{thrust}, and the FMU exposes no
+electrical input that acts on thrust at all --- there is simply no
+grid-to-thrust channel to command. The only conceivable route is the indirect one
+already written in \eqref{eq:se-fa-path},
+\[
+  \text{grid}\to P_e\to T_e\to \omega_m\to \lambda\to C_T\to F_T
+  \to q_{\mathrm{fa}},
+\]
+and every gate on that route is shut: its first link is the very torque channel
+that ROSCO owns (\S\ref{subsec:rb-torque}), so \(T_e\) barely moves; and even if it
+did, the huge rotor inertia would keep \(\omega_m\), and therefore \(\lambda\),
+\(C_T\) and the thrust, nearly constant at fixed wind. The FA mode is thus blocked
+twice over --- no direct electrical thrust channel, and the indirect
+torque\(\to\)speed\(\to\)thrust channel throttled by both ROSCO and the rotor
+inertia. Neither tower mode, then, can be electrically excited in the FMU.
+
+This is also why the FA/SS distinction survives into the reduced model, where the
+torque path \emph{is} open: there SS is driven and FA is not, by a factor of
+\(\sim\!30\) at resonance (\S\ref{subsec:se-selectivity},
+\S\ref{subsec:nt-resonance}). The controller blocking in the FMU and the drive-path
+selectivity in the reduced model are two views of the same fact --- the grid can
+only ever reach the tower through torque, and only the side-to-side mode listens to
+torque.
+
+\subsection{The core: full-converter decoupling}
+\label{subsec:rb-core}
+
+Putting the pieces together, the OpenFAST-FMU behaves as a \emph{full-converter
+decoupling with no return path}. With \(\texttt{VSContrl}=5\) the OpenFAST
+generator torque is entirely ROSCO's; the network disturbance reaches only the
+co-simulation \emph{wrapper} generator mass --- which is why it \emph{does} excite
+the \SI{3.49}{\hertz} drivetrain torsional mode of \S\ref{sec:forcedresponse} ---
+but never OpenFAST's own structural solver, and hence never the tower modes. The
+electrical and structural sides of the high-fidelity model are separated by the
+controller, and there is no path back.
+
+Two design choices follow directly, and both are pursued elsewhere in this report.
+To prove that the OpenFAST \emph{tower} really would amplify a torque oscillation
+if one could be imposed, the torque is injected through ROSCO's own open-loop
+control table, bypassing the \(K\omega^2\) law entirely
+(\S\ref{subsec:se-openfast}); that experiment recovers the sharp SS resonance and
+so isolates the structural selectivity from the controller blocking. And to obtain
+a genuinely \emph{closed} electrical drive of the tower --- a real grid
+disturbance producing the torque --- the study moves to the reduced
+\texttt{WindTurbineTower} (\S\ref{sec:simplified-tower-model}), where
+\(T_e = P_e/(\omega_{e,\mathrm{filt}}\eta)\) enters the modal equation explicitly
+and no controller intercepts it. The blocking result of this section is thus not a
+dead end but the hinge of the whole methodology.
+
+\subsection*{Sources}
+\label{subsec:rb-sources}
+
+\begin{itemize}
+  \item ROSCO controller (\texttt{VSContrl} torque law, open-loop control,
+        \texttt{TRA\_Mode} tower resonance avoidance, \texttt{F\_LPFCornerFreq}):
+        Abbas et al.\ (2022), \emph{A reference open-source controller for fixed
+        and floating offshore wind turbines}, Wind Energy Science 7, 53--73,
+        \href{https://doi.org/10.5194/wes-7-53-2022}{doi.org/10.5194/wes-7-53-2022};
+        documentation \href{https://rosco.readthedocs.io/}{rosco.readthedocs.io};
+        source \href{https://github.com/NREL/ROSCO}{github.com/NREL/ROSCO}.
+  \item OpenFAST / ServoDyn (\texttt{VSContrl} options, FMU interface):
+        \href{https://openfast.readthedocs.io/}{openfast.readthedocs.io}.
+\end{itemize}

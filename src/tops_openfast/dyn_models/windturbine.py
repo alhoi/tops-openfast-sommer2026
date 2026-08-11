@@ -7,7 +7,6 @@ from tops_openfast.dyn_models.speed_lpf import (
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator, interp1d
 from scipy.optimize import brentq
-import os
 from pathlib import Path
 
 class WindTurbine(DAEModel):
@@ -71,6 +70,9 @@ class WindTurbine(DAEModel):
 
         # Gen-speed LPF in Te denominator (ROSCO); keeps MPT on raw omega_m when speed_lpf_type=0.
         self._te_speed_lpf_type = 2
+        self._grid_frequency_hz = float(
+            np.asarray(self.par['f_nom_hz']).ravel()[0]
+        )
 
     def connections(self):
         return [
@@ -147,6 +149,7 @@ class WindTurbine(DAEModel):
         zeta = float(np.asarray(self._speed_lpf_damping).ravel()[0])
 
         # --- Torque coupling: Te = Pe / (omega_e_filt * eta) ---
+        
         omega_e_filtered = speed_pu_for_use(X, 'omega_e', 'omega_e_filt', lpf_type)
         if not np.isfinite(omega_e_filtered) or omega_e_filtered <= 1e-3:
             omega_e_filtered = 1e-3
@@ -167,15 +170,26 @@ class WindTurbine(DAEModel):
         max_pitch = par['max_pitch'][0]
         min_pitch = par['min_pitch'][0]
         max_pitch_rate = par['max_pitch_rate'][0]
-        omega_ref = 1.0 # 'hardcoded' as the rated speed from init willl always be 1 pu
-        e_omega = float(np.asarray(X['omega_e']).ravel()[0]) - omega_ref
+        omega_ref = 1.0  # Rated speed in pu.
+
+        # Pitch control must not react to the unfiltered torsional speed.
+        # The present test has constant 11 m/s wind, above wind_rated = 10.6 m/s,
+        # so it must stay in Region 3 rather than switch to zero-pitch Region 2
+        # whenever the generator-speed torsion mode dips slightly below 1 pu.
+        omega_pitch = float(np.asarray(omega_e_filtered).ravel()[0])
+        e_omega = omega_pitch - omega_ref
+
+        wind_now = float(np.asarray(self.wind_speed(x, v)).ravel()[0])
+        wind_rated = float(np.asarray(par["wind_rated"]).ravel()[0])
+        use_region_2 = wind_now < wind_rated
+
         pitch_reference_pi = 0.0
 
-        if e_omega < -0.001:
-            # Region 2: below rated speed - MPPT, reset integral
+        if use_region_2:
+            # Region 2: below-rated wind, MPPT and minimum pitch.
             dX_pitch_integral = 0.0
             pitch_reference_pi = min_pitch
-        else:  # Region 3: at or above rated speed - pitch to limit power
+        else:  # Region 3: at/above rated wind, pitch to limit power
             # Calculate controller output to check for anti-windup
             PIctrl_integral_term = par['Ki_pitch'][0] * X['pitch_PI_integral_state'][0]
             PIctrl_proportional_term = par['Kp_pitch'][0] * e_omega
@@ -310,16 +324,156 @@ class WindTurbine(DAEModel):
         
         return P_aero_pu  # WT pu
  
-    def P_ref(self, x, v):
-        # send P_ref to UIC
+    def set_grid_frequency_hz(self, f_grid_hz):
+        """
+        Midlertidig inngang for målt nettfrekvens.
+
+        Foreløpig settes denne fra simuleringsscriptet.
+        Senere kan den erstattes av en egen frekvensmåler/PLL-modell.
+        """
+        self._grid_frequency_hz = float(f_grid_hz)
+
+    def _droop_command(self, p_available_uic_pu):
+        """
+        Compute the active-power reference on the UIC base.
+
+        Normal operation is always de-loaded MPT:
+            P_base = clip(P_available - headroom, 0, P_available)
+
+        Droop is optional:
+            Delta P = K_droop * (f_nom - f_grid)
+
+        The final reference is clipped to the available WT power. The returned
+        droop contribution is the delivered increment after that clipping.
+        """
+        par = self.par
+
+        f_nom = float(np.asarray(par["f_nom_hz"]).ravel()[0])
+        droop_enabled = bool(
+            int(np.asarray(par["droop_enable"]).ravel()[0])
+        )
+        k_droop = float(
+            np.asarray(par["K_droop_pu_per_hz"]).ravel()[0]
+        )
+        headroom = float(
+            np.asarray(par["headroom_pu"]).ravel()[0]
+        )
+
+        p_available_uic_pu = float(max(0.0, p_available_uic_pu))
+
+        # De-loaded MPT operating point. No scheduled-power mode exists.
+        p_base = float(
+            np.clip(
+                p_available_uic_pu - headroom,
+                0.0,
+                p_available_uic_pu,
+            )
+        )
+
+        delta_p_requested = (
+            k_droop * (f_nom - self._grid_frequency_hz)
+            if droop_enabled
+            else 0.0
+        ) #undersøke lavpassfilter
+
+        p_ref_cmd = float(
+            np.clip(
+                p_base + delta_p_requested,
+                0.0,
+                p_available_uic_pu,
+            )
+        )
+
+        delta_p_delivered = p_ref_cmd - p_base
+
+        return p_ref_cmd, p_base, delta_p_delivered
+
+    def P_ref_components(self, x, v):
+        """
+        Returnerer MPT-grense, basisreferanse, droop-bidrag og total P_ref.
+        Alle effekter er på UIC-base.
+        """
         X = self.local_view(x)
         par = self.par
-        lpf_type = int(np.asarray(self._speed_lpf_type).ravel()[0]) if hasattr(self, '_speed_lpf_type') else 1
-        filtered_omega_e_pu = speed_pu_for_use(X, 'omega_e', 'omega_e_filt', lpf_type)
-        omega_rated = float(np.asarray(self.par['omega_m_rated']).ravel()[0])
-        gen_speed_rad_s = filtered_omega_e_pu * omega_rated
-        P_elec_wt_pu = self._mpt_power_elec_pu(gen_speed_rad_s, filtered_omega_e_pu)
-        return np.atleast_1d(P_elec_wt_pu * par['S_n'] / self.S_n_UIC(x, v))
+
+        lpf_type = int(
+            np.asarray(self._speed_lpf_type).ravel()[0]
+        )
+
+        omega_e_pu = speed_pu_for_use(
+            X,
+            'omega_e',
+            'omega_e_filt',
+            lpf_type,
+        )
+
+        omega_rated = float(
+            np.asarray(par['omega_m_rated']).ravel()[0]
+        )
+        omega_e_rad_s = omega_e_pu * omega_rated
+
+        # MPT-basert tilgjengelig elektrisk effekt på WT-base
+        p_mpt_wt_pu = self._mpt_power_elec_pu(
+            omega_e_rad_s,
+            omega_e_pu,
+        )
+
+        # Konverter til UIC-base
+        # 
+        """
+        p_available_uic_pu = float(
+            np.asarray(
+                p_mpt_wt_pu
+                * par['S_n']
+                / self.S_n_UIC(x, v)
+            ).ravel()[0]
+        )"""
+        p_available_uic_pu = float(
+            np.asarray(
+                p_mpt_wt_pu
+                * par["S_n"]
+                / self.S_n_UIC(x, v)
+            ).ravel()[0]
+        )
+
+        # Rated aktiv effekt på UIC-base:
+        # P_rated = 1.0 pu på 15 MVA WT-base
+        # => 15 / 20 = 0.75 pu på UIC-base.
+        p_rated_uic_pu = float(
+            np.asarray(
+                par["P_rated"]
+                * par["S_n"]
+                / self.S_n_UIC(x, v)
+            ).ravel()[0]
+        )
+
+        p_available_uic_pu = np.clip(
+            p_available_uic_pu,
+            0.0,
+            p_rated_uic_pu,
+        )
+
+        p_ref_cmd, p_base, delta_p = self._droop_command(
+            p_available_uic_pu
+        )
+
+        return {
+            'p_available_uic_pu': p_available_uic_pu,
+            'p_base_uic_pu': p_base,
+            'p_droop_delta_uic_pu': delta_p,
+            'p_ref_uic_pu': p_ref_cmd,
+        }
+
+    def P_ref(self, x, v):
+        """
+        Aktiv-effektreferanse sendt fra vindturbinmodellen til UIC-en.
+        """
+        ref = self.P_ref_components(x, v)
+
+        return np.atleast_1d(
+            ref['p_ref_uic_pu']
+        )
+
 
     def P_ref_from_wind(self, wind_speed_mps, S_n_UIC):
         # used for initial load flow, to get right power init
@@ -350,7 +504,28 @@ class WindTurbine(DAEModel):
             lam_ref = R * w_rated / float(np.asarray(par['wind_rated']).ravel()[0])
             omega_init = float(np.clip(lam_ref * wind_speed_mps / R / w_rated, 0.05, 1.0))
         P_elec_wt_pu = self._mpt_power_elec_pu(omega_init * w_rated, omega_init)
-        return P_elec_wt_pu * S_n / float(np.asarray(S_n_UIC).ravel()[0])
+        p_available_uic_pu = (
+            P_elec_wt_pu
+            * S_n
+            / float(np.asarray(S_n_UIC).ravel()[0])
+        )
+        p_rated_uic_pu = float(
+            np.asarray(par["P_rated"]).ravel()[0]
+        ) * S_n / float(np.asarray(S_n_UIC).ravel()[0])
+
+        p_available_uic_pu = float(
+            np.clip(
+                p_available_uic_pu,
+                0.0,
+                p_rated_uic_pu,
+            )
+        )
+
+        p_ref_cmd, _, _ = self._droop_command(
+            float(p_available_uic_pu)
+        )
+
+        return p_ref_cmd
 
     def _mpt_power_mech_pu(self, omega_rad_s, omega_pu):
         # helper function to calculate mechanical power used for init
@@ -479,15 +654,37 @@ class WindTurbine(DAEModel):
     def wind_speed_init(self):
         """Wind speed at t=0 (m/s). Defaults to rated for load-flow / modal OP."""
         #return float(np.asarray(self.par['wind_rated']).ravel()[0])
-        return 14.0
-
+        return 11.0
+    def wind_speed(self,x,v):
+        return 11.0
+    """
     def wind_speed(self, x, v):
-        """Returns wind speed in m/s. Uses _sim_time (s) when set by sim loop, else 0 (init)."""
-        t = getattr(self, '_sim_time', 0)
-        # if t < 120:
-            # return 14.0
-        # else:
-            # return 14.0
-        """ t = getattr(self, '_sim_time', 0)
-        return float(self._wind_interp(t)) """
-        return float(self._wind_interp(t))
+                
+                Returns wind speed in m/s. Uses _sim_time (s) when set by sim loop, else 0 (init).
+                t = getattr(self, '_sim_time', 0)
+                # if t < 120:
+                    # return 14.0
+                # else:
+                    # return 14.0
+                t = getattr(self, '_sim_time', 0)
+                return float(self._wind_interp(t)) 
+                
+            return float(self._wind_interp(t)) """
+
+
+class WindTurbine2(WindTurbine):
+    """
+    Alias of WindTurbine used to place a second, independent single-unit
+    wind-turbine model on the same grid (e.g. WT1 at Busbar WTG1 LV and
+    WT2 at Busbar WTG2 LV).
+
+    The base WindTurbine model is written for a single unit. Registering the
+    turbines under two different model keys ('WindTurbine' and 'WindTurbine2')
+    keeps each turbine as its own single-unit model object, so the existing
+    single-turbine math is reused unchanged. It adds no new behaviour.
+    """
+    pass
+
+
+        
+

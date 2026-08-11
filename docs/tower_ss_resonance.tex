@@ -1,0 +1,203 @@
+% =====================================================================
+%  Section: Frequency-selective electro-mechanical coupling to the
+%           tower side-to-side mode (OpenFAST-FMU + LEOGO)
+%  Required in preamble:
+%    \usepackage{amsmath, amssymb}
+%    \usepackage{graphicx}
+%    \usepackage{booktabs}
+%    \usepackage{siunitx}
+%  Figures produced by:
+%    casestudies/dyn_sim/sweep_resonance.py
+%    -> casestudies/dyn_sim/results/sweep/resonance_curve.png
+%       casestudies/dyn_sim/results/sweep/resonance_summary.csv
+%  Adjust the figure path (fig/...) to your own build tree.
+% =====================================================================
+
+\section{Frequency-Selective Coupling to the Tower Side-to-Side Mode}
+\label{sec:tower-ss-resonance}
+
+The forced-response study of \S\ref{sec:forcedresponse} demonstrated the
+electrically driven \emph{drivetrain torsional} resonance. This section turns to
+the second mechanical mode of interest for the LEOGO offshore platform: the
+first \emph{tower side-to-side} (SS) bending mode. The motivation is the central
+research question of the project --- whether a grid disturbance in the platform
+network can propagate into, and resonantly excite, a lightly damped mechanical
+mode of the wind turbine. The tower SS mode is a natural candidate because its
+natural frequency nearly coincides with the LEOGO grid's own electromechanical
+oscillation, so any grid oscillation in that band falls exactly where the
+mechanical coupling is strongest.
+
+\subsection{Mechanical configuration and frequency coincidence}
+\label{subsec:ss-config}
+
+In the OpenFAST (ElastoDyn) model used for the co-simulation only two structural
+degrees of freedom are enabled: the generator DOF (\texttt{GenDOF}) and the
+first side-to-side tower bending mode (\texttt{TwSSDOF1}). The flapwise,
+edgewise, fore-aft-tower and drivetrain-torsion DOFs are all disabled
+(\texttt{FlapDOF}, \texttt{EdgeDOF}, \texttt{TwFADOF1}, \texttt{DrTrDOF} =
+\texttt{False}). The high-fidelity model therefore \emph{isolates} the tower SS
+mode as the single free structural mode driven by the generator, which makes it
+the clean target for the interaction study. The turbine operates in Region~2
+(hub-height wind \SI{8}{\metre\per\second}, rotor speed
+\(\approx\SI{5.70}{rpm}\)), below rated.
+
+The tower SS first mode sits at \(f_{\mathrm{SS}} \approx \SI{0.234}{\hertz}\).
+The LEOGO network, dominated by the platform gas-turbine synchronous machines,
+has a centre-of-inertia (COI) electromechanical mode at
+\(f_{\mathrm{grid}} \approx \SI{0.226}{\hertz}\) --- essentially on top of the
+tower mode. This near-coincidence is the physically relevant observation: a
+frequency disturbance emitted by the grid in its own electromechanical band
+coincides with the frequency at which the tower is most responsive.
+
+\subsection{Torque path and the ROSCO constraint}
+\label{subsec:ss-torque-path}
+
+Unlike the reduced model, the electrical\(\to\)mechanical path into the OpenFAST
+\emph{structure} is not open by default. ROSCO (\texttt{VSContrl}=5) owns the
+generator torque internally and rejects the external torque and power commands
+(\texttt{GenSpdOrTrq}, \texttt{ElecPwrCom}) passed across the FMU interface. The
+only channel that reaches the OpenFAST structural solver is the ROSCO
+\emph{open-loop} generator-torque table (\texttt{OL\_Mode}=1,
+\texttt{Ind\_GenTq}=2), read from \texttt{OLInput\_ROSCO.dat} at initialisation.
+We therefore prescribe the torque disturbance directly through that table as a
+sinusoidal modulation about the Region-2 operating torque
+\(T_0 = \SI{11.02}{\mega\newton\metre}\),
+\begin{equation}
+  T_{\mathrm{gen}}(t) = T_0\,\big[\,1 + a\,
+    \sin\!\big(2\pi f\,(t-t_{\mathrm{on}})\big)\,\big]\,
+    \mathbb{1}[t \ge t_{\mathrm{on}}],
+  \qquad a = 0.10,
+  \label{eq:ss-forcing}
+\end{equation}
+i.e.\ a \(\pm\SI{10}{\percent}\) (\(\pm\SI{1.1}{\mega\newton\metre}\)) generator-torque
+oscillation switched on at \(t_{\mathrm{on}}=\SI{10}{\second}\). It must be
+stated plainly that the torque source here is \emph{imposed} rather than the
+product of a closed grid\(\to\)torque feedback: the ROSCO controller blocks the
+genuine electrical path in this FMU build. What the experiment does establish is
+genuine OpenFAST structural physics, namely the \emph{frequency selectivity}
+with which the tower amplifies a generator-torque oscillation. The
+complementary reduced-model study of \S\ref{subsec:fr-simplified}, in which the
+electromagnetic-torque path is open by construction, provides the genuinely
+closed electrical-to-mechanical demonstration.
+
+This choice of a modal-frequency probe is deliberate. A realistic
+grid-frequency transient following a load step is slow and one-sided --- a dip
+of order \SI{90}{\milli\hertz} developing over tens of seconds --- so almost all
+of its spectral energy lies near DC and virtually none at \SI{0.234}{\hertz}.
+Such a disturbance, replayed through a droop law, was found to leave the tower SS
+response essentially unchanged. To characterise the coupling itself we therefore
+probe the system at, and around, the modal frequency.
+
+\subsection{Sweep method}
+\label{subsec:ss-method}
+
+For each probe frequency \(f\) the coupled LEOGO\,+\,OpenFAST-FMU co-simulation
+is run for \SI{60}{\second} with a fixed communication step of
+\SI{0.01}{\second} and \emph{no} grid load event, so that the sinusoidal
+generator torque of \eqref{eq:ss-forcing} is the only disturbance (a clean
+single-frequency probe). The tower response is read from the tower-top
+side-to-side acceleration \texttt{YawBrTAyp}. To separate the response at the
+forcing frequency from the broadband ambient motion, a sinusoid at \(f\) is
+fitted by least squares over the settled window \(t \in [25,60]\,\si{\second}\),
+\begin{equation}
+  y(t) \approx \alpha\sin(2\pi f t) + \beta\cos(2\pi f t) + \gamma,
+  \qquad
+  A_{\mathrm{SS}} = \sqrt{\alpha^2 + \beta^2},
+  \label{eq:ss-fit}
+\end{equation}
+and the fitted amplitude \(A_{\mathrm{SS}}\) is taken as the response metric.
+The sweep, table and figure are produced by
+\texttt{casestudies/dyn\_sim/sweep\_resonance.py}.
+
+\subsection{Results}
+\label{subsec:ss-results}
+
+The sweep traces out a sharp resonance peaking in the tower SS band
+(Table~\ref{tab:ss-sweep}, Figure~\ref{fig:ss-curve}). Far from resonance
+(\SIrange{0.10}{0.15}{\hertz}) the fitted side-to-side amplitude is negligible,
+\(A_{\mathrm{SS}} \approx \SI{5e-3}{\metre\per\second\squared}\): the imposed
+torque oscillation barely moves the tower. Approaching the modal frequency the
+response climbs steeply, reaching \(A_{\mathrm{SS}} \approx
+\SI{0.29}{\metre\per\second\squared}\) at \SI{0.245}{\hertz} --- an amplification
+of about \(60\times\) relative to the off-resonance floor --- and falls off just
+as steeply above \SI{0.26}{\hertz}. The peak lies in the
+\SIrange{0.234}{0.245}{\hertz} band, consistent with the tower SS first mode; the
+measured maximum sits marginally above the nominal \SI{0.234}{\hertz}, an offset
+attributable to the coarse frequency grid and to the finite settling within the
+measurement window. The narrowness of the curve --- amplitudes above the
+half-power level (\(A_{\mathrm{SS}} \gtrsim \SI{0.20}{\metre\per\second\squared}\))
+span only \(\approx\SI{0.02}{\hertz}\) --- indicates a lightly damped, high-\(Q\)
+mode (\(Q \sim 10\), i.e.\ \(\zeta \sim \SI{5}{\percent}\)).
+
+Crucially, the LEOGO grid electromechanical mode at \SI{0.226}{\hertz} falls on
+the steep rising flank of this resonance curve, where the tower response has
+already grown to \(A_{\mathrm{SS}} \approx \SI{0.14}{\metre\per\second\squared}\)
+--- some \(30\times\) the off-resonance floor. A grid oscillation in the
+platform's own electromechanical band therefore lands squarely in the frequency
+range to which the tower is strongly susceptible.
+
+\begin{table}[t]
+  \centering
+  \caption{OpenFAST-FMU frequency sweep of the tower side-to-side response:
+  least-squares fitted amplitude of \texttt{YawBrTAyp} at the forcing frequency
+  (\(\pm\SI{10}{\percent}\) generator-torque modulation, Region~2). Rows in bold
+  mark the LEOGO grid mode and the tower SS mode.}
+  \label{tab:ss-sweep}
+  \begin{tabular}{lc}
+    \toprule
+    \(f\) [\si{\hertz}] &
+      \(A_{\mathrm{SS}}\) [\si{\metre\per\second\squared}] \\
+    \midrule
+    0.100          & 0.0047 \\
+    0.150          & 0.0071 \\
+    0.190          & 0.0473 \\
+    0.210          & 0.0680 \\
+    \textbf{0.226} & \textbf{0.1399} \\
+    \textbf{0.234} & \textbf{0.2591} \\
+    0.245          & 0.2873 \\
+    0.260          & 0.0734 \\
+    0.300          & 0.0296 \\
+    0.400          & 0.0195 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/resonance_curve.png}
+  \caption{OpenFAST-FMU model: fitted tower-top side-to-side acceleration
+  amplitude (\texttt{YawBrTAyp}) versus generator-torque modulation frequency
+  (\(\pm\SI{10}{\percent}\), Region~2). The response peaks sharply in the tower
+  side-to-side band (dashed line, \SI{0.234}{\hertz}); the LEOGO grid
+  electromechanical mode (dotted line, \SI{0.226}{\hertz}) sits on the rising
+  flank of the resonance.}
+  \label{fig:ss-curve}
+\end{figure}
+
+\subsection{Discussion}
+\label{subsec:ss-discussion}
+
+The sweep is direct evidence of frequency-selective electro-mechanical coupling:
+the OpenFAST tower structure amplifies a generator-torque oscillation by roughly
+\(60\times\) when the oscillation frequency matches its side-to-side eigenmode,
+and hardly at all otherwise. Combined with the near-coincidence of the LEOGO grid
+electromechanical mode (\SI{0.226}{\hertz}) and the tower SS mode
+(\SI{0.234}{\hertz}), this makes the grid\(\to\)mechanical propagation
+physically plausible rather than merely postulated.
+
+Two caveats frame the interpretation. First, as noted in
+\S\ref{subsec:ss-torque-path}, the torque is injected through the ROSCO
+open-loop table because the controller blocks the genuine grid\(\to\)torque path
+in this FMU build; the resonant \emph{amplification} is real structural physics,
+but the excitation is prescribed. Second, the result is best read as a
+\emph{susceptibility} (worst-case) statement: the LEOGO COI mode is strongly
+damped and does not ring spontaneously, so a sustained tower oscillation would
+require a persistent forcing in the \SIrange{0.22}{0.25}{\hertz} band (for
+example from poorly damped operating conditions or sub-synchronous control
+interactions). The finding is that \emph{if} the grid oscillates in this band,
+the frequency coincidence makes the coupling to the tower strong. The genuinely
+open electrical-to-mechanical demonstration, without any imposed torque, is
+provided by the reduced-model torsional study of \S\ref{sec:forcedresponse};
+the two models are complementary --- the reduced model proves the open coupling
+path, and the high-fidelity model quantifies the frequency selectivity of a
+realistic tower mode.

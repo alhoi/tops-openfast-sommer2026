@@ -1,0 +1,265 @@
+% =====================================================================
+%  Section: Forced-response demonstration of the electrically driven
+%           drivetrain torsional resonance (simplified + OpenFAST-FMU)
+%  Required in preamble:
+%    \usepackage{amsmath, amssymb}
+%    \usepackage{graphicx}
+%    \usepackage{booktabs}
+%    \usepackage{siunitx}
+%  Adjust the figure path (fig/...) to your own.
+% =====================================================================
+
+\section{Forced-Response Demonstration of the Torsional Resonance}
+\label{sec:forcedresponse}
+
+The modal analysis of \S\ref{sec:frequency-analysis} located a lightly damped
+drivetrain torsional mode at \SI{3.49}{\hertz} ($\zeta_{\mathrm{t}} =
+\SI{4.37}{\percent}$) and argued, on the basis of its generator-dominated mode
+shape, that it should be excitable from the electrical port. This section
+provides the experimental verification promised there and in
+\S\ref{subsec:of-discussion}. The same electrical forcing experiment is run in
+two models: first the reduced two-mass model, where the electromagnetic-torque
+path is open by construction, and then the high-fidelity OpenFAST co-simulation,
+where the mode is reproduced in the FMU drivetrain-interface layer. In both
+cases a periodic electrical disturbance at the modal frequency is shown to drive
+the shaft torque into a growing, sustained resonance, while an off-resonance
+disturbance of equal amplitude does not.
+
+\subsection{Forcing setup}
+\label{subsec:fr-setup}
+
+The electrical disturbance is applied as an oscillating shunt load at the
+wind-turbine terminal bus. A shunt admittance of magnitude $y_{\mathrm{load}} =
+\hat{P}/S_{\mathrm{base}}$ is modulated sinusoidally and switched on at a time
+$t_{\mathrm{on}}$ (before which the system sits at its power-flow equilibrium),
+\begin{equation}
+  y_{\mathrm{sh}}(t) = y_{\mathrm{load}}\,
+  \sin\!\big(2\pi f\,(t-t_{\mathrm{on}})\big)\,\mathbb{1}[t \ge t_{\mathrm{on}}].
+  \label{eq:fr-forcing}
+\end{equation}
+The modulated load makes the wind-turbine terminal power oscillate,
+$P_e(t) = P_0 + \hat{P}\sin(2\pi f\,t)$ as in \eqref{eq:Pe-forcing}, which
+through $T_e = P_e/(\omega_{e,\mathrm{filt}}\eta)$ produces an oscillating
+electromagnetic torque on the generator mass. The forcing frequency $f$ is swept
+across the modal frequency, and for each run the resonance is quantified by the
+\emph{post-onset peak-to-peak shaft torque}, $\Delta T_{\mathrm{sh}} =
+\max_{t\ge t_{\mathrm{on}}} T_{\mathrm{sh}} - \min_{t\ge t_{\mathrm{on}}}
+T_{\mathrm{sh}}$, complemented by the envelope build-up ratio and an FFT of the
+response.
+
+\subsection{Reduced two-mass model}
+\label{subsec:fr-simplified}
+
+With a forcing amplitude of $\hat{P} = \SI{2.0}{\mega\watt}$, the shaft-torque
+response is dramatically frequency-selective. Off resonance (a
+\SI{1.0}{\hertz} disturbance) the response is small and its envelope
+\emph{decays} after onset (build-up ratio $0.39$), i.e.\ the disturbance merely
+pushes the well-damped low-frequency dynamics. On resonance
+(\SI{3.49}{\hertz}) the response is an order of magnitude larger and its
+envelope is \emph{sustained} (build-up ratio $\approx 1.0$), the signature of a
+forcing that continuously feeds the lightly damped mode
+(Figure~\ref{fig:fr-onoff-simple}). An FFT of the on-resonance response peaks
+exactly at the forcing frequency, confirming that it is the torsional mode, and
+not a harmonic, that is being driven. Figure~\ref{fig:fr-buildup-simple} shows
+the two-panel time history: the sinusoidal electrical forcing (top) and the
+resonant build-up of the shaft torque towards its saturated amplitude (bottom).
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_torsional_timeseries_on_off.png}
+  \caption{Reduced model: shaft-torque response to an electrical disturbance of
+  equal amplitude, on resonance (\SI{3.49}{\hertz}) versus off resonance
+  (\SI{1.0}{\hertz}). The off-resonance response decays after onset while the
+  on-resonance response is sustained.}
+  \label{fig:fr-onoff-simple}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_torsional_buildup.png}
+  \caption{Reduced model: electrical forcing at \SI{3.49}{\hertz} (top, terminal
+  power) and the resonant build-up of the shaft torque towards saturation
+  (bottom).}
+  \label{fig:fr-buildup-simple}
+\end{figure}
+
+Sweeping the forcing frequency traces out the resonance curve of
+Figure~\ref{fig:fr-curve-simple}, with the values listed in
+Table~\ref{tab:fr-sweep}. The peak-to-peak shaft torque rises from
+\SI{0.22}{\mega\newton\metre} at \SI{1.0}{\hertz} to
+\SI{7.96}{\mega\newton\metre} at \SI{3.49}{\hertz} --- an amplification of about
+$36\times$ --- and falls off again above the mode, with the peak located
+precisely at the eigenfrequency predicted by the modal analysis. The
+sharpness of the curve is consistent with the quality factor $Q =
+1/(2\zeta_{\mathrm{t}}) \approx 11$ of \eqref{eq:Q}.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_torsional_resonance_curve.png}
+  \caption{Reduced model: peak-to-peak shaft torque versus electrical forcing
+  frequency ($\hat{P}=\SI{2.0}{\mega\watt}$). The dashed line marks the
+  torsional eigenfrequency; the response peaks there.}
+  \label{fig:fr-curve-simple}
+\end{figure}
+
+\begin{table}[t]
+  \centering
+  \caption{Reduced-model frequency sweep: post-onset peak-to-peak shaft torque
+  and envelope build-up ratio ($\hat{P}=\SI{2.0}{\mega\watt}$).}
+  \label{tab:fr-sweep}
+  \begin{tabular}{lcc}
+    \toprule
+    $f$ [\si{\hertz}] & $\Delta T_{\mathrm{sh}}$ [\si{\mega\newton\metre}] &
+      Envelope ratio \\
+    \midrule
+    1.00 & 0.22 & 0.39 \\
+    2.00 & 0.66 & 0.37 \\
+    2.50 & 1.23 & 0.50 \\
+    3.00 & 2.65 & 0.66 \\
+    3.25 & 4.46 & 0.84 \\
+    \textbf{3.49} & \textbf{7.96} & \textbf{1.01} \\
+    3.75 & 5.53 & 0.87 \\
+    4.00 & 4.09 & 0.76 \\
+    5.00 & 2.35 & 0.75 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{OpenFAST-FMU model}
+\label{subsec:fr-fmu}
+
+The experiment was then repeated in the high-fidelity co-simulation, where the
+IEA \SI{15}{\mega\watt} turbine runs as an FMU coupled to the grid. A word on
+where the torsional mode lives is needed to reconcile this with the negative
+result of \S\ref{subsec:of-electrical}. Inside OpenFAST the drivetrain is kept
+rigid (\texttt{DrTrDOF} disabled), and ROSCO owns the generator torque and
+rejects external commands, so the OpenFAST \emph{structure} cannot be driven
+electrically. The co-simulation interface layer, however, represents the
+electrical machine as a lumped generator mass $H_e$ coupled through a compliant
+shaft ($K_{pu},D_{pu}$) to the rotor speed \emph{prescribed} by the FMU
+(\texttt{RotSpeed}, itself governed by ROSCO). The electromagnetic torque
+$T_e = P_e/(\omega_{e,\mathrm{filt}}\eta)$ acts on this generator mass exactly
+as in the reduced model, so the electrical$\to$mechanical path into the
+\emph{interface} torsional mode is open by construction, independent of ROSCO,
+which merely sets the rotor-side boundary.
+
+Because the rotor speed is a prescribed boundary rather than a free inertia, the
+interface reduces to a single mass on a spring, whose natural frequency is
+\begin{equation}
+  f_n = \frac{1}{2\pi}\sqrt{\frac{K_{pu}}{2H_e}} = \SI{3.485}{\hertz},
+  \qquad
+  \zeta = \frac{D_{pu}}{2\sqrt{2H_e K_{pu}}} = \SI{4.4}{\percent},
+  \label{eq:fr-fmu-fn}
+\end{equation}
+using the running wrapper constants $H_e = \SI{0.0384}{\second}$,
+$K_{pu} = 36.8$, $D_{pu} = 0.149$. This is the same \SI{3.49}{\hertz} torsional
+mode, now reached from the single-mass limit of the two-mass system.
+
+With a smaller forcing amplitude of $\hat{P} = \SI{0.5}{\mega\watt}$, the FMU
+sweep (Table~\ref{tab:fr-fmu-sweep}, Figure~\ref{fig:fr-curve-fmu}) again shows
+a clean resonance peaking at \SI{3.49}{\hertz}, where the peak-to-peak shaft
+torque reaches \SI{8.57}{\mega\newton\metre}. The on- versus off-resonance time
+series and the resonant build-up (Figures~\ref{fig:fr-onoff-fmu}
+and~\ref{fig:fr-buildup-fmu}) reproduce the reduced-model behaviour inside the
+full aeroelastic co-simulation. The demonstration therefore holds not only in
+the idealised model but also in the detailed one, provided the excitation
+targets the electrically coupled generator mass rather than the
+controller-governed rotor torque.
+
+\begin{table}[t]
+  \centering
+  \caption{OpenFAST-FMU frequency sweep: post-onset peak-to-peak shaft torque
+  ($\hat{P}=\SI{0.5}{\mega\watt}$).}
+  \label{tab:fr-fmu-sweep}
+  \begin{tabular}{lc}
+    \toprule
+    $f$ [\si{\hertz}] & $\Delta T_{\mathrm{sh}}$ [\si{\mega\newton\metre}] \\
+    \midrule
+    1.00 & 1.65 \\
+    2.00 & 1.79 \\
+    2.50 & 1.98 \\
+    3.00 & 3.51 \\
+    3.25 & 5.54 \\
+    \textbf{3.49} & \textbf{8.57} \\
+    3.75 & 5.48 \\
+    4.50 & 2.81 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_FMU_torsional_resonance_curve.png}
+  \caption{OpenFAST-FMU model: peak-to-peak shaft torque versus electrical
+  forcing frequency ($\hat{P}=\SI{0.5}{\mega\watt}$). The response peaks at the
+  \SI{3.49}{\hertz} torsional mode.}
+  \label{fig:fr-curve-fmu}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_FMU_torsional_timeseries_on_off.png}
+  \caption{OpenFAST-FMU model: shaft torque on resonance (\SI{3.49}{\hertz})
+  versus off resonance (\SI{1.0}{\hertz}) for an equal-amplitude electrical
+  disturbance.}
+  \label{fig:fr-onoff-fmu}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_FMU_torsional_buildup.png}
+  \caption{OpenFAST-FMU model: electrical forcing at \SI{3.49}{\hertz} (top) and
+  the resonant build-up of the wrapper shaft torque (bottom).}
+  \label{fig:fr-buildup-fmu}
+\end{figure}
+
+\subsection{Comparison of the two models}
+\label{subsec:fr-comparison}
+
+Figure~\ref{fig:fr-comparison} overlays the two resonance curves, each
+normalised to its own peak (the absolute amplitudes are not directly comparable
+because the models are driven at different forcing amplitudes ---
+\SI{2.0}{} versus \SI{0.5}{\mega\watt} --- and have different inertia scalings).
+The decisive point is that both curves peak at the \emph{same} frequency,
+\SI{3.49}{\hertz}: the reduced model and the high-fidelity co-simulation locate
+the identical torsional mode, and both respond to electrical forcing there.
+
+Two physically meaningful differences remain. First, per unit of forcing power
+the FMU response is much larger (\SI{8.57}{\mega\newton\metre} from
+\SI{0.5}{\mega\watt}, versus \SI{7.96}{\mega\newton\metre} from
+\SI{2.0}{\mega\watt}): in the single-mass limit \eqref{eq:fr-fmu-fn} the entire
+compliant motion is concentrated in the small generator inertia $H_e$, so a
+given torque disturbance produces a larger twist. Second, the FMU curve has a
+higher off-resonance floor and thus appears less sharply selective. This is a
+direct consequence of the prescribed rotor: with $\omega_m$ held fixed by the
+FMU, a low-frequency electrical disturbance twists the shaft quasi-statically
+against an immovable rotor, whereas the reduced model has a free rigid-body mode
+that lets both masses drift together and relieves the low-frequency twist. The
+resonant peak itself, and the mode location, are unaffected.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_torsional_model_comparison.png}
+  \caption{Normalised resonance curves of the reduced two-mass model and the
+  OpenFAST-FMU model, each scaled to its own peak. Both locate the same
+  \SI{3.49}{\hertz} torsional mode; the FMU curve has a higher off-resonance
+  floor because its rotor speed is a prescribed boundary.}
+  \label{fig:fr-comparison}
+\end{figure}
+
+\subsection{Conclusion}
+\label{subsec:fr-conclusion}
+
+The forced-response experiments confirm the central hypothesis: a lightly
+damped drivetrain torsional mode can be driven to a sustained mechanical
+resonance from the electrical port. The reduced model demonstrates the effect
+cleanly ($36\times$ amplification at \SI{3.49}{\hertz}, sustained envelope,
+FFT peak at the forcing frequency), and the OpenFAST co-simulation reproduces
+it at the same frequency once the excitation is applied to the electrically
+coupled generator mass rather than to the ROSCO-governed rotor torque. It is
+worth stressing that the \SI{3.49}{\hertz} mode is the compliant coupling of the
+co-simulation interface, not OpenFAST's internal drivetrain torsion: enabling
+OpenFAST's own \texttt{DrTrDOF} would introduce a different, much stiffer
+($\sim\SI{30}{\hertz}$) mode lying outside the co-simulation bandwidth
+(above the Nyquist frequency of the $\Delta t = \SI{0.01}{\second}$ step), and
+is neither necessary nor helpful for the present demonstration.

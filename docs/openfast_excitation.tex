@@ -1,0 +1,240 @@
+% =====================================================================
+%  Section: Side-to-side tower-mode excitation in the high-fidelity
+%           OpenFAST wind-turbine model
+%  Required in preamble:
+%    \usepackage{amsmath, amssymb}
+%    \usepackage{graphicx}
+%    \usepackage{booktabs}
+%    \usepackage{siunitx}
+%  Adjust the figure path (fig/...) to your own.
+% =====================================================================
+
+\section{Side-to-Side Tower-Mode Excitation in the OpenFAST Model}
+\label{sec:openfast-excitation}
+
+Before adopting the reduced two-mass model of
+\S\ref{sec:frequency-analysis}, a series of experiments was carried out on the
+high-fidelity aeroelastic wind turbine, running OpenFAST as a Functional
+Mock-up Unit (FMU) co-simulated with the electrical grid. The objective was to
+excite the lightly damped first side-to-side (SS) tower mode from the
+electrical side, i.e.\ to demonstrate an electro-mechanical interaction in the
+detailed model. This section documents what was attempted, why the electrical
+excitation path turned out to be blocked by the turbine controller, and how the
+mode was ultimately excited through an aerodynamic path instead. The negative
+result directly motivates the pivot to the simplified model.
+
+\subsection{Model and co-simulation setup}
+\label{subsec:of-setup}
+
+The turbine is the IEA \SI{15}{\mega\watt} reference machine, exported from
+OpenFAST as an FMU and coupled to the power-system model at a fixed
+co-simulation step of $\Delta t = \SI{0.01}{\second}$. The relevant
+configuration was:
+\begin{itemize}
+  \item \textbf{ElastoDyn}: only the structural degrees of freedom of interest
+  enabled --- the first side-to-side tower DOF (\texttt{TwSSDOF1}), the
+  generator DOF (\texttt{GenDOF}), and the rotor set spinning at
+  \SI{5.70}{rpm}; blade pitch fixed and all other DOFs disabled to isolate the
+  SS response.
+  \item \textbf{ServoDyn}: the generator-torque and pitch control are handled by
+  the ROSCO controller through the Bladed-style DLL interface
+  ($\texttt{VSContrl}=5$, $\texttt{PCMode}=5$).
+  \item \textbf{Hydrodynamics/substructure disabled} ($\texttt{CompHydro}=0$,
+  $\texttt{CompSub}=0$): no wave loading, so the SS response is driven purely by
+  the excitation under study.
+  \item The FMU exposes the nacelle side-to-side acceleration
+  (\texttt{YawBrTAyp}) as the SS observable, together with the generator torque
+  (\texttt{GenTq}) and blade pitch (\texttt{BldPitch}).
+\end{itemize}
+
+\paragraph{The side-to-side tower mode.}
+A free-decay (ring-down) test identified the first SS tower mode at
+\begin{equation}
+  f_{\mathrm{SS}} \approx \SI{0.234}{\hertz}
+  \quad(\text{precisely } \SI{0.23411}{\hertz}),
+  \qquad \zeta_{\mathrm{SS}} \approx \SI{0.5}{\percent},
+  \qquad \tau_{\mathrm{SS}} \approx \SI{136}{\second},
+  \label{eq:ss-mode}
+\end{equation}
+i.e.\ a very lightly damped, essentially aerodynamically decoupled lateral mode.
+Its low damping is what makes a sustained resonance possible in principle; the
+long ring-down time constant $\tau_{\mathrm{SS}}$ also means transients persist
+for many minutes, a fact that complicates the interpretation of the results
+(see below).
+
+\subsection{Attempt 1: excitation through the electrical/torque command}
+\label{subsec:of-electrical}
+
+The first and most direct idea was to modulate the electrical loading of the
+generator at the SS frequency and let the resulting torque ripple drive the
+tower laterally. Two command channels exposed by the FMU were tried:
+\begin{enumerate}
+  \item a commanded electrical power \texttt{ElecPwrCom}, modulated by
+  $\pm\SI{20}{\percent}$ at \SI{0.236}{\hertz};
+  \item a commanded generator torque \texttt{GenSpdOrTrq}.
+\end{enumerate}
+The same tests were repeated below rated (Region~2, \SI{8}{\metre\per\second})
+and above rated (Region~3), where in Region~2 the pitch remained at
+\SI{0}{\degree} with zero ripple, confirming the operating region.
+
+\paragraph{Result: the commands are rejected.}
+A baseline run \emph{without} any modulation was compared against the modulated
+runs. The generator-torque ripple was found to be \emph{bit-identical} in both
+cases (e.g.\ $\pm\SI{144.96}{\kilo\newton\metre}$ in Region~2, with and without
+\texttt{ElecPwrCom} modulation), and the SS acceleration envelope was
+indistinguishable. In other words, the external power and torque commands have
+\emph{zero} effect on the simulated torque. Table~\ref{tab:of-electrical}
+summarises the comparison.
+
+\begin{table}[t]
+  \centering
+  \caption{Electrical/torque command test (Region~2). The modulated and
+  baseline cases are identical, showing the commands are ignored.}
+  \label{tab:of-electrical}
+  \begin{tabular}{lcc}
+    \toprule
+     & \texttt{ElecPwrCom} $\pm\SI{20}{\percent}$ & Baseline (no mod.) \\
+    \midrule
+    Mean \texttt{GenTq} [\si{\kilo\newton\metre}]   & 11\,179 & 11\,179 \\
+    \texttt{GenTq} ripple [\si{\kilo\newton\metre}] & $\pm 144.96$ & $\pm 144.96$ \\
+    Blade-pitch ripple                              & 0 & 0 \\
+    SS envelope (decaying)                          & $0.204 \to 0.092$ & $0.204 \to 0.092$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Why: ROSCO owns the torque.}
+The cause is the control architecture. With $\texttt{VSContrl}=5$ the generator
+torque is computed \emph{internally} by ROSCO from the measured generator speed,
+in Region~2 following the standard optimal $K\omega^2$ law,
+\begin{equation}
+  T_{\mathrm{gen}} = K_{\mathrm{opt}}\,\omega_{g}^{2},
+  \label{eq:komega2}
+\end{equation}
+and does not read the external \texttt{ElecPwrCom}/\texttt{GenSpdOrTrq} ports.
+The $\pm\SI{145}{\kilo\newton\metre}$ ripple that is observed is therefore not a
+response to the command at all, but ROSCO's own speed-reaction to the start-up
+transient. The only remaining physical grid$\to$SS path is indirect (a grid
+event perturbs the electrical torque, which changes the speed, to which ROSCO
+then reacts), but this coupling was found to be negligible: the SS response to
+grid disturbances was roughly \SI{0.012}{\metre\per\second\squared} steady
+against a \SI{0.225}{\metre\per\second\squared} start-up transient. The
+conclusion is unambiguous: \emph{the SS mode cannot be excited through the
+electrical/torque command channel in this FMU.}
+
+\subsection{Attempt 2: bypassing ROSCO via \texttt{VSContrl}=4}
+\label{subsec:of-vscontrl4}
+
+To open the external-torque path, ServoDyn was reconfigured to
+$\texttt{VSContrl}=4$ (external/Simulink torque), which would let the
+grid-power-derived torque become the actual generator torque. The OpenFAST
+input files are read at FMU run time, so this change requires no FMU rebuild.
+However, the FMU \emph{crashes} under $\texttt{VSContrl}=4$ (an access-violation
+error in the FMI call), so this route was abandoned and the controller reverted
+to $\texttt{VSContrl}=5$. The electrical path thus remained closed.
+
+\subsection{Attempt 3: aerodynamic excitation via oscillating wind direction}
+\label{subsec:of-winddir}
+
+Since the torque channel is governed by ROSCO, the excitation was instead
+introduced \emph{upstream of the controller}, through the aerodynamics. A
+uniform (hub-height) wind input file was generated in which the wind
+\emph{direction} column oscillates sinusoidally at the SS frequency,
+\begin{equation}
+  \phi_{\mathrm{wind}}(t) = \hat{\phi}\,\sin\!\big(2\pi f_{\mathrm{SS}}\, t\big),
+  \label{eq:winddir}
+\end{equation}
+while the wind speed is held constant. The oscillating direction produces a
+periodic yaw misalignment, hence a lateral aerodynamic force on the rotor that
+drives the tower side-to-side \emph{directly}, entirely bypassing the ROSCO
+torque channel.
+
+\paragraph{First run (amplitude \SI{4}{\degree}, \SI{0.234}{\hertz}).}
+In contrast to every torque/power run --- where the SS envelope decayed
+monotonically towards the ring-down floor --- the SS response here did
+\emph{not} decay. After the initial start-up transient died away (a dip around
+$t\approx\SI{110}{\second}$), the amplitude \emph{rebuilt} to a sustained
+$\approx\SI{0.21}{\metre\per\second\squared}$. The re-growth after the dip is
+the signature of sustained resonant forcing.
+
+\paragraph{Delayed-start run (amplitude \SI{10}{\degree}, onset at
+\SI{150}{\second}).}
+Because the first run started the sinusoid at $t=0$, simultaneously with the
+start-up transient (both near \SI{0.2}{\metre\per\second\squared} at the same
+frequency), the two could not be visually separated. The experiment was
+therefore repeated with the directional forcing delayed to
+$t=\SI{150}{\second}$. This produced the clean, textbook picture: the SS
+acceleration first decays to $\approx\SI{0.08}{\metre\per\second\squared}$ by
+$t=\SI{150}{\second}$, and then \emph{grows monotonically} to
+$\pm\SI{0.42}{\metre\per\second\squared}$ by $t=\SI{400}{\second}$, still
+rising --- a classic resonance build-up (Figure~\ref{fig:ss-buildup}). This
+confirms that the wind-direction oscillation at $f_{\mathrm{SS}}$ excites the
+side-to-side mode.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/ss_winddir_buildup.png}
+  \caption{Side-to-side nacelle acceleration under wind-direction forcing at
+  $f_{\mathrm{SS}}=\SI{0.234}{\hertz}$ with forcing onset at
+  $t=\SI{150}{\second}$. The response decays to the ring-down floor, then builds
+  up resonantly once the directional forcing begins.}
+  \label{fig:ss-buildup}
+\end{figure}
+
+\subsection{Effect of the second side-to-side DOF}
+\label{subsec:of-dof2}
+
+Enabling the second SS tower DOF (\texttt{TwSSDOF2}) and repeating the forcing
+markedly reduced the response, from $\pm\SI{0.42}{}$ down to
+$\approx\SI{0.056}{\metre\per\second\squared}$ at the same forcing. A precise
+free-decay measurement (60 zero-crossings) showed the natural frequency was
+\emph{unchanged} at \SI{0.23411}{\hertz}; the effect is therefore \emph{not} a
+frequency shift but an increase in the effective damping / a change in the mode
+shape (weaker modal projection of the lateral aerodynamic force, and
+energy-sharing between the two tower modes) that dropped the forced response by
+roughly a factor of seven.
+
+\subsection{Chirp sweep: is there a second SS mode?}
+\label{subsec:of-chirp}
+
+To search for a possible second side-to-side tower mode, a linear
+wind-direction \emph{chirp} from \SI{0.15}{\hertz} to \SI{2.5}{\hertz} was
+applied. The analysis confirmed the first SS mode at \SI{0.234}{\hertz} but
+revealed \emph{no} distinct second SS tower mode. The higher-frequency spectral
+content was identified as rotor harmonics of the blade-passing frequency: with
+the rotor at $\approx\SI{5.7}{rpm}$ the $1P$ frequency is \SI{0.095}{\hertz},
+and the observed peaks at \SI{0.283}{}, \SI{0.565}{}, \SI{0.847}{} and
+\SI{1.128}{\hertz} correspond to $3P$, $6P$, $9P$ and $12P$. The evenly spaced
+side peaks are $1P$ sidebands of the swept forcing against the rotor rotation,
+not tower modes. The slow ring-down of the first mode
+($\zeta\approx\SI{0.5}{\percent}$, $\tau\approx\SI{136}{\second}$) dominates the
+chirp envelope and masks any weaker high-frequency resonance.
+
+\subsection{Discussion and motivation for the reduced model}
+\label{subsec:of-discussion}
+
+The OpenFAST experiments establish two firm results. First, the side-to-side
+tower mode \emph{can} be driven to a clear, growing resonance, but only through
+the \emph{aerodynamic} path (an oscillating wind direction at
+$f_{\mathrm{SS}}$); the mechanical response builds up as expected for a lightly
+damped mode. Second, the intended \emph{electrical} excitation path is
+effectively \emph{closed} in this model: ROSCO computes the generator torque
+internally from the measured speed and rejects external power/torque commands,
+and the $\texttt{VSContrl}=4$ route that would open the path crashes the FMU.
+Consequently the high-fidelity model cannot demonstrate an electrically driven
+mechanical resonance without rebuilding the controller interface.
+
+This negative result is the direct motivation for the reduced two-mass model
+studied in \S\ref{sec:frequency-analysis}: there the electromagnetic torque
+enters the generator-mass equation of motion explicitly through
+$T_e = P_e/(\omega_{e,\mathrm{filt}}\eta)$, so the electrical$\to$mechanical
+path is \emph{open by construction}. The reduced model therefore provides the
+setting in which the electrically driven torsional resonance can actually be
+demonstrated (\S\ref{sec:forcedresponse}). Note that the target mode differs
+between the two models: the high-fidelity model exhibits a lateral \emph{tower}
+mode at \SI{0.234}{\hertz}, whereas the reduced model has no tower and instead
+exhibits a \emph{drivetrain torsional} mode at \SI{3.49}{\hertz}. The physical
+phenomenon under study --- an electrically driven, lightly damped mechanical
+resonance --- is nevertheless the same, and it is the phenomenon, rather than
+the specific numerical frequency, that the reduced-model demonstration is
+intended to capture.

@@ -1,0 +1,80 @@
+% =====================================================================
+%  Seksjon: Rød tråd / narrativ for hele sommerprosjektet.
+%  Formål:  Kort kronologisk fortelling (4 faser) til poster/pitch.
+%           Fase 1 = droop-kontroll + laststeg i LEOGO-nettet (STARTEN),
+%           Fase 4 lukker sirkelen tilbake til droopen.
+%  Kilder:  casestudies/dyn_sim/test_WT_LEOGO_droop_comparison_diagnostics.py
+%           casestudies/dyn_sim/test_WT_LEOGO_torsional_resonance_sim.py
+%           casestudies/dyn_sim/sweep_resonance.py            (OL GenTq)
+%           casestudies/dyn_sim/test_WT_LEOGO_tower_sim.py
+%           src/tops_openfast/dyn_models/windturbine_tower.py
+%  Preamble: amsmath, amssymb, graphicx, booktabs, siunitx, hyperref
+%            \DeclareSIUnit{\pu}{pu}
+% =====================================================================
+
+\section{Red Thread: From Grid Frequency Support to Tower Loading}
+\label{sec:narrative}
+
+This project studies electro-mechanical interactions in an offshore wind
+turbine --- the IEA \SI{15}{\mega\watt} reference turbine --- coupled through a
+grid-forming converter to the LEOGO islanded oil-and-gas platform network, and
+co-simulated in TOPS. The study is best read as a single storyline in four
+phases; each phase is developed in full in the section it points to. The thread
+runs from a grid \emph{service} the turbine can provide to a structural
+\emph{cost} that same service imposes, and back again.
+
+\paragraph{Phase 1 --- Frequency-support droop and grid load steps (the starting
+point).}
+The turbine is first given an explicit frequency-support droop and de-loaded to
+hold a headroom reserve. Matched cases \emph{with} and \emph{without} the droop
+are then run on the LEOGO grid under load steps applied both abruptly and
+gradually, and the droop is shown to reduce the grid-frequency excursion (the
+nadir) after the event. This establishes the operational motivation for
+everything that follows: on an islanded platform the wind turbine \emph{can} help
+arrest frequency deviations, the same primary-reserve service the gas-turbine
+governors provide. See \S\ref{sec:outer-droop} and \S\ref{sec:outer-droop-necessity};
+the matched droop/no-droop experiment is
+\texttt{casestudies/dyn\_sim/test\_WT\_LEOGO\_droop\_comparison\_diagnostics.py}.
+
+\paragraph{Phase 2 --- Modal analysis and the shaft (drivetrain-torsion) mode.}
+A modal analysis of the coupled turbine--LEOGO system identifies a lightly damped
+drivetrain torsion (shaft) mode, and forced-response tests confirm that an
+\emph{electrical} disturbance can drive it into resonance. The mode is excited in
+both models --- the reduced TOPS drivetrain (a sharp resonance under a shunt-load
+sweep) and the OpenFAST FMU --- and, crucially, it is reachable from the LEOGO
+network bus itself, though attenuated by the network impedance. This is the first
+concrete electrical-to-mechanical resonance of the study. See
+\S\ref{sec:frequency-analysis}, \S\ref{sec:forcedresponse},
+\S\ref{sec:fmu-torsion-resonance} and \S\ref{sec:network-excitation}.
+
+\paragraph{Phase 3 --- Tower modes in OpenFAST: ROSCO blocking and open-loop
+injection.}
+Turning to the tower, the side-to-side (SS) and fore-aft (FA) modes are examined
+in the high-fidelity OpenFAST turbine. Here the normal electrical path is found
+to be \emph{blocked} by the ROSCO controller, which computes the generator torque
+internally and rejects the external commands. Injecting torque instead through
+ROSCO's open-loop input file excites the SS mode --- a sharp resonance peaking in
+the tower band --- but \emph{not} the FA mode, because the FA mode is thrust
+driven rather than torque driven. This establishes that the electro-mechanical
+coupling is frequency- and mode-selective: the generator-torque path reaches SS,
+not FA. See \S\ref{sec:openfast-excitation}, \S\ref{sec:rosco-blocking} and
+\S\ref{sec:tower-ss-resonance}.
+
+\paragraph{Phase 4 --- Tower modes in the reduced model, operational scenarios,
+and closing the circle.}
+Because ROSCO blocks the genuinely closed electrical loop in the FMU, the SS and
+FA tower modes are added as calibrated modal oscillators to the reduced
+\texttt{WindTurbineTower} model, which has an \emph{open} electrical-to-mechanical
+path and runs in real time against the full LEOGO grid. Operational scenarios
+(gas-turbine trip, a resonant cyclic process load, and a frequency sweep) then
+close the loop back to Phase~1: the very frequency-support droop that improved the
+grid frequency is shown to ring the SS tower mode \emph{harder}. That is the
+central result --- the frequency-support / tower-loading trade-off. See
+\S\ref{sec:simplified-tower-model}, \S\ref{sec:shaft-excitation} and
+\S\ref{sec:new-tests}, in particular the trade-off in \S\ref{subsec:nt-tradeoff}.
+
+\paragraph{The thread in one sentence.}
+A wind turbine that supports an islanded platform grid trades grid-frequency
+quality against structural tower loading, because the same generator-torque path
+that delivers fast active power also drives the lightly damped side-to-side tower
+mode.

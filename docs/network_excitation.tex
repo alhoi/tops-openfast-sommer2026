@@ -1,0 +1,259 @@
+% =====================================================================
+%  Section: Network-driven excitation of the drivetrain torsional mode
+%           by a LEOGO process-load event (Low-Emission scenario)
+%  Follows on from \label{sec:forcedresponse}.
+%  Required in preamble:
+%    \usepackage{amsmath, amssymb}
+%    \usepackage{graphicx}
+%    \usepackage{booktabs}
+%    \usepackage{siunitx}
+%  Adjust the figure path (fig/...) to your own.
+% =====================================================================
+
+\section{Network-Driven Excitation from a Platform Process Load}
+\label{sec:network-excitation}
+
+The forced-response study of \S\ref{sec:forcedresponse} established that the
+drivetrain torsional mode at \SI{3.49}{\hertz} can be driven to resonance by an
+electrical disturbance applied \emph{at the turbine terminal}. That experiment
+was a controlled probe: a clean single-frequency shunt modulation used to trace
+the electromechanical transfer path and locate the resonance. It does not yet
+answer the question that matters for an integrated offshore energy system such
+as LEOGO: can a disturbance originating \emph{elsewhere in the platform grid}
+--- a process-load event on the oil-and-gas side --- reach the wind turbine and
+excite the same mode? This section answers that question in the affirmative,
+using the reduced model in which the electromechanical path is open by
+construction.
+
+\subsection{Point of common coupling}
+\label{subsec:ne-pcc}
+
+On the LEOGO platform every large process load --- the gas-export compressor
+trains (\texttt{GEX}, \SI{9.7}{\mega\watt} each), the drilling loads, the
+utility and pump loads --- and the wind park are supplied from the same
+\SI{11}{\kilo\volt} main switchboard, \emph{Main~Bus~A}. That busbar is
+therefore the point of common coupling (PCC) between the process side and the
+wind turbine. A power fluctuation produced by a process load appears at the PCC
+and propagates, through the intervening network impedance, to the turbine
+terminal. Accordingly the disturbance in this section is injected as a
+shunt-load admittance at Main~Bus~A rather than at the turbine, so that it must
+traverse the platform network before it can act on the drivetrain. Because the
+individual constant-impedance process loads are folded into the reduced network,
+injecting the aggregate disturbance at the PCC is the faithful, lumped
+representation of a process-load event.
+
+\subsection{Network-to-turbine transfer}
+\label{subsec:ne-transfer}
+
+Repeating the frequency sweep of \S\ref{subsec:fr-simplified} with the
+disturbance moved from the turbine terminal to the PCC traces out the
+network-to-turbine transfer of Figure~\ref{fig:ne-curve} and
+Table~\ref{tab:ne-sweep}. The response remains sharply resonant and still peaks
+\emph{exactly} at \SI{3.49}{\hertz}: the torsional mode is reached from the
+LEOGO side and rings at its own frequency, independent of the injection point.
+The intervening network impedance attenuates the amplitude --- at resonance the
+peak-to-peak shaft torque is \SI{0.60}{\mega\newton\metre} from the PCC versus
+\SI{7.96}{\mega\newton\metre} for the same disturbance applied directly at the
+terminal, a factor of about $13$ --- but the shape and location of the resonance
+are preserved (Figure~\ref{fig:ne-compare}). Normalising each curve to its own
+peak (Figure~\ref{fig:ne-normalized}) makes the point explicit: the two curves
+are the same resonance, merely scaled. The attenuation grows with frequency, as
+expected for the series reactance of the feeders and step-up transformers
+between the PCC and the turbine.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_network2turbine_curve.png}
+  \caption{Network-to-turbine transfer: peak-to-peak shaft torque versus the
+  frequency of an electrical disturbance injected at the PCC (Main~Bus~A). The
+  response peaks at the \SI{3.49}{\hertz} torsional mode, reached from the LEOGO
+  side.}
+  \label{fig:ne-curve}
+\end{figure}
+
+\begin{table}[t]
+  \centering
+  \caption{Frequency sweep with the disturbance injected at the PCC
+  (Main~Bus~A), compared with direct terminal injection
+  (\S\ref{subsec:fr-simplified}). Both use $\hat{P}=\SI{2.0}{\mega\watt}$.}
+  \label{tab:ne-sweep}
+  \begin{tabular}{lccc}
+    \toprule
+    $f$ [\si{\hertz}] & PCC $\Delta T_{\mathrm{sh}}$
+      [\si{\mega\newton\metre}] & Terminal $\Delta T_{\mathrm{sh}}$
+      [\si{\mega\newton\metre}] & Attenuation \\
+    \midrule
+    1.00 & 0.051 & 0.22 & $4.4\times$ \\
+    2.00 & 0.142 & 0.66 & $4.7\times$ \\
+    2.50 & 0.191 & 1.23 & $6.4\times$ \\
+    3.00 & 0.299 & 2.65 & $8.9\times$ \\
+    3.25 & 0.420 & 4.46 & $10.6\times$ \\
+    \textbf{3.49} & \textbf{0.595} & \textbf{7.96} & $\mathbf{13.4\times}$ \\
+    3.75 & 0.326 & 5.53 & $17.0\times$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_network2turbine_compare.png}
+  \caption{Resonance curves for direct terminal injection (left axis) and
+  PCC injection (right axis). Both peak at \SI{3.49}{\hertz}; only the amplitude
+  differs, owing to the network attenuation.}
+  \label{fig:ne-compare}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_network2turbine_normalized.png}
+  \caption{The two curves of Figure~\ref{fig:ne-compare} normalised to their own
+  peaks: identical resonance shape, confirming that the same torsional mode is
+  excited whether the disturbance enters at the turbine or at the PCC.}
+  \label{fig:ne-normalized}
+\end{figure}
+
+\subsection{A realistic process-load pulsation}
+\label{subsec:ne-pulsation}
+
+The swept sinusoid is a measurement tool, not a physical event. To make the
+scenario concrete, the disturbance is now interpreted as the fluctuating
+component of a cyclically loaded process machine --- a reciprocating or
+periodically loaded compressor whose electrical power pulsates about its mean
+draw. A modest pulsation amplitude of $\hat{P}=\SI{0.5}{\mega\watt}$ (a few
+percent of a \SI{9.7}{\mega\watt} compressor train) at \SI{3.49}{\hertz} is
+applied at the PCC. The drivetrain builds up to a sustained shaft-torque
+oscillation of amplitude \SI{74}{\kilo\newton\metre}
+(Figure~\ref{fig:ne-pulsation}), i.e.\ a transfer gain of
+\begin{equation}
+  \frac{\Delta \hat{T}_{\mathrm{sh}}}{\hat{P}}
+  \approx \SI{149}{\kilo\newton\metre\per\mega\watt}
+  \label{eq:ne-gain}
+\end{equation}
+of shaft-torque swing per megawatt of pulsating power at the PCC. Even a small,
+entirely realistic load ripple therefore produces a clearly measurable cyclic
+loading of the wind-turbine drivetrain. Following the disturbance along its path
+(Figure~\ref{fig:ne-propagation}) shows the chain explicitly: the pulsation
+modulates the Main~Bus~A voltage, which modulates the wind-turbine terminal
+power, which through $T_e$ drives the shaft torque, all locked to the
+\SI{3.49}{\hertz} mode.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_process_pulsation_response.png}
+  \caption{A \SI{0.5}{\mega\watt} process-load pulsation at \SI{3.49}{\hertz}
+  at the PCC (top) and the resonant build-up of the drivetrain shaft-torque
+  deviation it drives (bottom).}
+  \label{fig:ne-pulsation}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_process_pulsation_propagation.png}
+  \caption{Propagation of the pulsation from the PCC to the turbine (a few
+  steady-state cycles): Main~Bus~A voltage, wind-turbine terminal power and
+  shaft torque, all oscillating at \SI{3.49}{\hertz}.}
+  \label{fig:ne-propagation}
+\end{figure}
+
+\subsection{Frequency selectivity of the coupling}
+\label{subsec:ne-selectivity}
+
+The transfer sweep of \S\ref{subsec:ne-transfer} already implies that the
+network-to-drivetrain coupling is sharply frequency dependent, but this is worth
+stating explicitly, because it clarifies the nature of the interaction. The
+grid does not couple broadband energy into the drivetrain; the shaft responds
+strongly only to disturbances whose spectral content coincides with the
+\SI{3.49}{\hertz} eigenfrequency. Figure~\ref{fig:ne-selectivity} makes this
+concrete by applying the \emph{same} \SI{0.5}{\mega\watt} PCC pulsation of
+\S\ref{subsec:ne-pulsation} at three frequencies on a shared torque axis. Off
+resonance the drivetrain barely reacts --- a steady swing of
+\SI{16}{\kilo\newton\metre} at \SI{2.0}{\hertz} and \SI{29}{\kilo\newton\metre}
+at \SI{3.0}{\hertz} --- whereas the on-resonance disturbance at
+\SI{3.49}{\hertz} rings the mode up to \SI{74}{\kilo\newton\metre}, roughly
+$4.8\times$ the \SI{2.0}{\hertz} amplitude for identical forcing.
+
+This selectivity resolves an apparent tension with the modal analysis of
+\S\ref{sec:frequency-analysis}, where the torsional mode is found to be
+electromechanically \emph{isolated}: no system eigenmode spontaneously ties the
+platform grid to the drivetrain. The two findings are consistent. Modal coupling
+asks whether a single eigenvector spans both subsystems, and the answer is no.
+The excitation studied here is instead a \emph{forced} transmission along the
+open path $\Delta P \!\to\! \Delta T_e \!\to\! \Delta T_{\mathrm{sh}}$: a grid
+disturbance drives the lightly damped mode only in proportion to the spectral
+energy it carries at the modal frequency. Because the mode has a quality factor
+of only $Q \approx 11$ ($\zeta \approx \SI{4.4}{\percent}$), its resonant window
+is broad rather than needle-sharp --- hence the \SI{3.0}{\hertz} pulsation
+already produces an appreciable response --- but the peak remains firmly centred
+on \SI{3.49}{\hertz}. It is precisely this decoupling that makes the deliberate
+frequency matching of \S\ref{subsec:ne-pulsation} necessary: the drivetrain is
+excited because the disturbance is placed at its resonance, not because the two
+systems are inherently coupled.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_process_frequency_selectivity.png}
+  \caption{Frequency selectivity of the network-to-drivetrain coupling: the same
+  \SI{0.5}{\mega\watt} PCC pulsation applied at \SI{2.0}{\hertz} (off resonance),
+  \SI{3.0}{\hertz} (off resonance) and \SI{3.49}{\hertz} (on resonance), plotted
+  on a common shaft-torque axis. Only the disturbance at the eigenfrequency rings
+  the mode.}
+  \label{fig:ne-selectivity}
+\end{figure}
+
+\subsection{A discrete load-switching event}
+\label{subsec:ne-step}
+
+Resonant excitation does not require a tuned, sustained pulsation: any
+disturbance with spectral content near the eigenfrequency will ring a lightly
+damped mode. To demonstrate this, a discrete load-switching event is applied at
+the PCC --- a \SI{9.7}{\mega\watt} compressor block energised over a
+\SI{20}{\milli\second} breaker time, modelled as a ramped shunt load,
+\begin{equation}
+  y_{\mathrm{sh}}(t) = y_{\mathrm{load}}\,
+  \min\!\Big(\tfrac{t-t_{\mathrm{on}}}{t_{\mathrm{r}}},\,1\Big)\,
+  \mathbb{1}[t \ge t_{\mathrm{on}}].
+  \label{eq:ne-step}
+\end{equation}
+The step response, shown in Figure~\ref{fig:ne-step}, has two components. The
+dominant, slow part is the electromechanical settling of the LEOGO synchronous
+generators and their governors as they absorb the \SI{9.7}{\mega\watt} load
+change over several seconds. Superimposed on it is a decaying oscillation: the
+broadband step excites the torsional mode, which then rings. High-pass filtering
+the response to remove the slow settling isolates this ring (lower panel): it
+oscillates at \SI{3.47}{\hertz} with a peak-to-peak amplitude of
+\SI{132}{\kilo\newton\metre} and decays with a fitted damping ratio of
+\SI{4.3}{\percent}. That value matches the \SI{4.37}{\percent} obtained
+independently from the eigenvalue analysis (\S\ref{sec:frequency-analysis}),
+confirming that the ringing is genuinely the identified torsional mode and not
+an artefact of the forcing. A single switching event on the process side thus
+leaves a measurable torsional transient on the wind-turbine shaft.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_process_step_ringdown.png}
+  \caption{A discrete \SI{9.7}{\mega\watt} load-switching event at the PCC. Top:
+  the full shaft-torque deviation, dominated by the slow genset/governor
+  settling. Bottom: the high-pass-isolated torsional ring at \SI{3.47}{\hertz}
+  with its fitted decay envelope ($\zeta=\SI{4.3}{\percent}$), matching the modal
+  damping.}
+  \label{fig:ne-step}
+\end{figure}
+
+\subsection{Conclusion}
+\label{subsec:ne-conclusion}
+
+Taken together, the three experiments close the loop between the electrical
+network and the wind-turbine drivetrain. The transfer sweep shows that the
+\SI{3.49}{\hertz} torsional mode is reachable from the platform side of the grid,
+attenuated but unchanged in frequency. A realistic \SI{0.5}{\mega\watt}
+compressor pulsation at that frequency drives a \SI{74}{\kilo\newton\metre}
+shaft-torque oscillation, and a single \SI{9.7}{\mega\watt} switching event rings
+the mode with a decay rate that matches the eigenvalue prediction. For an
+integrated low-emission energy system, in which offshore wind supplies an
+oil-and-gas platform with large rotating process loads, this establishes a
+concrete electromechanical interaction pathway: periodic or transient
+disturbances on the process side can couple, through the shared network, into
+cyclic mechanical loading of the wind-turbine drivetrain. Whether such an
+interaction is benign or damaging depends on how close the platform's
+characteristic load frequencies lie to the drivetrain torsional frequency ---
+the quantitative screening of which is the natural continuation of this work.

@@ -1,0 +1,337 @@
+% =====================================================================
+%  Section: Frequency-domain (modal) analysis of the simplified drivetrain
+%  Required in preamble:
+%    \usepackage{amsmath, amssymb}
+%    \usepackage{graphicx}
+%    \usepackage{booktabs}
+%    \usepackage{siunitx}   % (optional; used for \si/\SI/\num)
+%  Adjust the figure path (fig/...) to your own.
+% =====================================================================
+
+\section{Frequency-Domain (Modal) Analysis of the Drivetrain}
+\label{sec:frequency-analysis}
+
+The purpose of this section is to characterise the linear oscillatory modes of
+the simplified wind-turbine model, and in particular to locate and interpret
+the mechanical \emph{torsional mode} of the shaft. The motivation is that this
+mode is the candidate for an electrically driven mechanical resonance: the
+converter (and hence the grid) can, in principle, pump energy into a lightly
+damped torsional mode through the electromagnetic torque. The analysis proceeds
+by linearising the full differential--algebraic model and then performing an
+eigenvalue and eigenvector (modal) decomposition.
+
+\subsection{Shaft model}
+\label{subsec:drivetrain}
+
+The drivetrain is modelled as a \emph{two-mass torsional system}: a heavy
+rotor/hub mass with inertia constant $H_m$, coupled through a flexible shaft of
+stiffness $K$ and damping $D$ to a much lighter generator mass $H_e$. The
+drivetrain state vector is
+\begin{equation}
+  x_{\mathrm{dt}} =
+  \begin{bmatrix} \omega_m & \omega_e & \theta_m & \theta_e \end{bmatrix}^{\!\top},
+  \label{eq:dt-states}
+\end{equation}
+where $\omega_m,\omega_e$ are the rotor and generator speeds (pu) and
+$\theta_m,\theta_e$ the corresponding angles. The equations of motion in
+per-unit are
+\begin{align}
+  2H_m\,\dot{\omega}_m &= T_m - T_{\mathrm{sh}}, &
+  2H_e\,\dot{\omega}_e &= T_{\mathrm{sh}} - T_e, \label{eq:swing}\\
+  \dot{\theta}_m &= \omega_m, &
+  \dot{\theta}_e &= \omega_e, \label{eq:angle}
+\end{align}
+with the shaft torque
+\begin{equation}
+  T_{\mathrm{sh}} = K_{pu}\,\theta_s + D_{pu}\,\omega_s,
+  \qquad \theta_s = \theta_m-\theta_e, \qquad \omega_s = \omega_m-\omega_e.
+  \label{eq:shaft}
+\end{equation}
+Here $T_m = P_{\mathrm{aero}}/\omega_m$ is the aerodynamic torque and
+\begin{equation}
+  T_e = \frac{P_e}{\omega_{e,\mathrm{filt}}\,\eta}
+  \label{eq:Te}
+\end{equation}
+is the electromagnetic torque, where $P_e$ is the power the converter actually
+delivers to the grid terminal and $\eta$ is the efficiency. Equation
+\eqref{eq:Te} is the key coupling term: a disturbance in the delivered power
+$P_e$ propagates directly into the generator-mass equation of motion
+\eqref{eq:swing} and hence into the torsional dynamics.
+
+\paragraph{Per-unit scaling.}
+With $\omega_{\mathrm{base}} = \omega_{m,\mathrm{rated}}$ (in
+\si{\radian\per\second}) and rated power $S_n$,
+\begin{equation}
+  T_{\mathrm{base}} = \frac{S_n}{\omega_{\mathrm{base}}}, \quad
+  H = \frac{\tfrac12 J\,\omega_{\mathrm{base}}^2}{S_n}, \quad
+  K_{pu} = \frac{K}{T_{\mathrm{base}}}, \quad
+  D_{pu} = \frac{D\,\omega_{\mathrm{base}}}{T_{\mathrm{base}}}.
+  \label{eq:pu}
+\end{equation}
+One convention detail is worth noting: the angle derivative in
+\eqref{eq:angle} is written $\dot{\theta} = \omega$ without an
+$\omega_{\mathrm{base}}$ factor. The consequence is that the modal frequency
+comes out \emph{directly in physical} \si{\radian\per\second}, as confirmed
+numerically below.
+
+\subsection{Linearisation and the state matrix}
+\label{subsec:linearisation}
+
+The full model is a differential--algebraic system
+\begin{equation}
+  \dot{x} = f(x, v), \qquad 0 = g(x, v),
+  \label{eq:dae}
+\end{equation}
+where $x$ collects the states and $v$ the bus voltages fixed by the algebraic
+network equations $g(\cdot)=0$ (current injections against the network
+admittance matrix). About an equilibrium point $(x_0, v_0)$, obtained from the
+power flow and initialisation of the dynamic simulation, a first-order Taylor
+expansion gives
+\begin{equation}
+  \Delta \dot{x} = A\,\Delta x,
+  \qquad
+  A = f_x - f_v\, g_v^{-1} g_x,
+  \label{eq:Amatrix}
+\end{equation}
+where the sub-matrices are Jacobians evaluated at $(x_0,v_0)$, and the term
+$-f_v g_v^{-1} g_x$ represents the elimination of the algebraic voltage
+variables. The matrix $A$ is the reduced state matrix of the system.
+
+\subsection{Eigenvalues: frequency and damping}
+\label{subsec:eigenvalues}
+
+The eigenvalue decomposition of $A$ is written
+\begin{equation}
+  A = R\,\Lambda\,L, \qquad
+  \Lambda = \operatorname{diag}(\lambda_1,\dots,\lambda_n), \qquad
+  L = R^{-1},
+  \label{eq:eig}
+\end{equation}
+where the columns $r_i$ of $R$ are the right eigenvectors and the rows
+$\ell_i^{\top}$ of $L$ are the left eigenvectors, normalised such that
+$\ell_i^{\top} r_j = \delta_{ij}$. Each complex-conjugate eigenvalue
+$\lambda_i = \sigma_i \pm j\omega_i$ corresponds to an oscillatory mode with
+\begin{equation}
+  f_i = \frac{\omega_i}{2\pi} \quad [\si{\hertz}],
+  \qquad
+  \zeta_i = \frac{-\sigma_i}{\sqrt{\sigma_i^2 + \omega_i^2}}
+          = \frac{-\sigma_i}{|\lambda_i|},
+  \qquad
+  \tau_i = \frac{-1}{\sigma_i},
+  \label{eq:fzeta}
+\end{equation}
+where $f_i$ is the damped oscillation frequency, $\zeta_i$ the damping ratio
+and $\tau_i$ the time constant for the decay of the mode amplitude. A mode is
+stable when $\sigma_i < 0$; the closer it lies to the imaginary axis
+($\zeta_i \to 0$), the more lightly damped and resonance-prone it is.
+
+\subsection{Mode shapes and participation factors}
+\label{subsec:modeshape}
+
+Two complementary quantities interpret a mode physically.
+
+\paragraph{Mode shape (right eigenvector).}
+The column $r_i$ gives the relative amplitude and phase of each state when
+mode $i$ is excited alone:
+\begin{equation}
+  \Delta x(t) = \operatorname{Re}\!\left\{ r_i\, c\, e^{\lambda_i t} \right\},
+  \label{eq:modeshape}
+\end{equation}
+for a scalar $c$ set by the initial condition. The mode shape thus shows
+\emph{what} the mode looks like, including whether states oscillate in phase or
+in anti-phase. We normalise so that the dominant component has unit length.
+
+\paragraph{Participation factor.}
+The dimensionless participation factor
+\begin{equation}
+  p_{ki} = \ell_{ik}\, r_{ki}
+  \label{eq:pf}
+\end{equation}
+combines the observability ($r_{ki}$) and controllability ($\ell_{ik}$) of
+state $k$ in mode $i$, and is invariant under scaling of the states. It
+identifies which states dominate the dynamics of the mode, and is used to
+classify the modes (mechanical, electromechanical, converter, etc.).
+
+\subsection{Analytical characterisation of the torsional mode}
+\label{subsec:torsion}
+
+The system \eqref{eq:swing}--\eqref{eq:shaft} has two mechanical degrees of
+freedom: a rigid common mode ($\lambda = 0$, the whole drivetrain rotating
+together) and a torsional mode in which the two masses twist against each
+other. Introduce the difference coordinates $\theta_s = \theta_m-\theta_e$ and
+$\omega_s = \omega_m-\omega_e$. With no external torque,
+\eqref{eq:swing}--\eqref{eq:angle} give
+\begin{equation}
+  \dot{\omega}_s
+  = -\,T_{\mathrm{sh}}\!\left(\frac{1}{2H_m} + \frac{1}{2H_e}\right),
+  \qquad \dot{\theta}_s = \omega_s .
+  \label{eq:diff}
+\end{equation}
+Substituting \eqref{eq:shaft} yields a damped harmonic oscillator
+\begin{equation}
+  \ddot{\theta}_s + 2\zeta_{\mathrm{t}}\omega_{n}\,\dot{\theta}_s
+  + \omega_{n}^{2}\,\theta_s = 0,
+  \label{eq:osc}
+\end{equation}
+with natural frequency and damping ratio
+\begin{equation}
+  \boxed{\;\omega_{n} = \sqrt{K_{pu}\!\left(\frac{1}{2H_m}+\frac{1}{2H_e}\right)}\;},
+  \qquad
+  \zeta_{\mathrm{t}}
+  = \frac{D_{pu}\!\left(\dfrac{1}{2H_m}+\dfrac{1}{2H_e}\right)}{2\,\omega_{n}}.
+  \label{eq:wn}
+\end{equation}
+
+\paragraph{Mode shape, analytically.}
+In the torsional mode the inertia-weighted common motion vanishes. Summing the
+two equations in \eqref{eq:swing} (with no external torque) gives
+$H_m\,A_m + H_e\,A_e = 0$, i.e.\ the amplitude ratio
+\begin{equation}
+  \frac{A_m}{A_e} = -\frac{H_e}{H_m} = -\frac{J_e}{J_m}.
+  \label{eq:ratio}
+\end{equation}
+Because the generator mass is far lighter than the rotor ($J_e \ll J_m$), the
+generator swings with much larger amplitude than the rotor, and the two are in
+exact anti-phase. The mode is therefore \emph{generator-dominated}.
+
+\subsection{Numerical results}
+\label{subsec:results}
+
+With the drivetrain parameters of the model
+($S_n = \SI{15}{\mega\voltampere}$, $J_m = \num{3.525e8}$,
+$J_e = \num{1.837e6}$, $K = \num{6.974e8}\,\si{\newton\metre\per\radian}$,
+$D = \num{3.570e6}\,\si{\newton\metre\second\per\radian}$,
+$\omega_{m,\mathrm{rated}} = \SI{7.56}{rpm}$), equation \eqref{eq:pu} gives
+\begin{equation}
+  \omega_{\mathrm{base}} = \SI{0.792}{\radian\per\second},\;
+  H_m = \SI{7.36}{\second},\;
+  H_e = \SI{0.0384}{\second},\;
+  K_{pu} = 36.8,\;
+  D_{pu} = 0.149 .
+  \label{eq:num-pu}
+\end{equation}
+Substituted into \eqref{eq:wn}:
+\begin{equation}
+  \frac{1}{2H_m}+\frac{1}{2H_e} = 0.068 + 13.03 = 13.10,
+\end{equation}
+\begin{equation}
+  \omega_n = \sqrt{36.8 \times 13.10} = \SI{21.95}{\radian\per\second}
+  \;\Rightarrow\; f_n = \SI{3.49}{\hertz},
+  \qquad
+  \zeta_{\mathrm{t}} = \frac{0.149 \times 13.10}{2 \times 21.95} = 0.044 .
+  \label{eq:num-result}
+\end{equation}
+The full modal analysis of the linearised model returns the torsional mode as
+the eigenvalue
+\begin{equation}
+  \lambda_{\mathrm{t}} = -0.960 \pm j\,21.934
+  \;\Rightarrow\;
+  f_{\mathrm{t}} = \SI{3.491}{\hertz},\quad
+  \zeta_{\mathrm{t}} = \SI{4.37}{\percent},\quad
+  \tau_{\mathrm{t}} \approx \SI{1.0}{\second},
+  \label{eq:num-eig}
+\end{equation}
+in excellent agreement with the analytical estimate \eqref{eq:num-result}. The
+small discrepancy is due to coupling with the converter and network states,
+which the isolated derivation of \S\ref{subsec:torsion} neglects.
+
+The right eigenvector confirms the mode shape quantitatively. Normalised to the
+dominant component,
+\begin{equation}
+  |r_{\omega_e}| = 0.998\;(\angle 180^\circ), \quad
+  |r_{\omega_m}| = 0.0052\;(\angle 0^\circ), \quad
+  |r_{\theta_e}| = 0.045, \quad
+  |r_{\theta_m}| = 0.0002,
+  \label{eq:num-rev}
+\end{equation}
+i.e.\ $|r_{\omega_m}|/|r_{\omega_e}| = 0.0052 = J_e/J_m$, exactly as predicted
+by \eqref{eq:ratio}. The participation factors point to the same conclusion:
+the torsional mode is completely dominated by the generator states $\omega_e$
+and $\theta_e$ (both $\approx 1.0$), while the rotor contribution is negligible
+($\approx 0.01$).
+
+\begin{table}[t]
+  \centering
+  \caption{Selected oscillatory modes of the linearised model, sorted by
+  frequency. The torsional mode is highlighted.}
+  \label{tab:modes}
+  \begin{tabular}{lccl}
+    \toprule
+    Mode & $f$ [\si{\hertz}] & $\zeta$ [\%] & Dominant states \\
+    \midrule
+    Rotor/MPT (slow)          & 0.064 & 23.1 & $\omega_m,\ \theta_m$ \\
+    Speed LPF / pitch         & 0.109 & 78.1 & $\omega_{e,\mathrm{filt}}$, pitch \\
+    Sync.\ gen.\ electromech.\ (COI) & 0.226 & 87.2 & gen.\ speed \\
+    Sync.\ gen.\ $e_q'$       & 1.208 & 14.7 & $e_q'$ \\
+    Converter (UIC) $v_{i,x}$ & 1.445 & 96.1 & $v_{i,x}$ \\
+    Sync.\ gen.\ $e_q'$ (fast)& 3.228 & 28.9 & $e_q'$, gen.\ speed \\
+    \textbf{Drivetrain torsional}& \textbf{3.491} & \textbf{4.37} &
+      $\boldsymbol{\omega_e,\ \theta_e}$ \emph{(gen.-dominated)} \\
+    Sync.\ gen.\ $e_d'$       & 5.204 & 0.26 & $e_d'$ \\
+    Converter (UIC) $v_{i,y}$ & 7.998 & 25.9 & $v_{i,y},\ x_{\mathrm{filter}}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Table~\ref{tab:modes} shows that the torsional mode at \SI{3.49}{\hertz} is the
+only lightly damped \emph{mechanical} mode, and that it is well separated from
+the neighbouring modes. Figure~\ref{fig:eigs} shows the eigenvalue spectrum in
+the $s$-plane with the torsional mode highlighted, while
+Figure~\ref{fig:modeshape} shows the mode shape in which the two masses swing
+in anti-phase.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/WT_LEOGO_eigs_full.png}
+  \caption{Eigenvalue spectrum ($s$-plane) of the simplified model. The
+  torsional mode ($\lambda = -0.96 \pm j21.93$, \SI{3.49}{\hertz},
+  $\zeta = \SI{4.37}{\percent}$) is marked. The fact that the mode lies close
+  to the imaginary axis is precisely why it can be driven to resonance.}
+  \label{fig:eigs}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.55\linewidth]{fig/WT_LEOGO_modeshape_torsional.png}
+  \caption{Mode shape of the torsional mode. The generator ($\omega_e$) and the
+  rotor ($\omega_m$) swing in exact anti-phase ($180^\circ$); the light
+  generator mass carries almost all of the motion, with amplitude ratio
+  $|r_{\omega_m}|/|r_{\omega_e}| = J_e/J_m \approx 0.0052$.}
+  \label{fig:modeshape}
+\end{figure}
+
+\subsection{Resonance and electro-mechanical interaction}
+\label{subsec:resonance}
+
+The low damping gives a quality factor
+\begin{equation}
+  Q = \frac{1}{2\zeta_{\mathrm{t}}} \approx \frac{1}{2 \cdot 0.044} \approx 11,
+  \label{eq:Q}
+\end{equation}
+i.e.\ a harmonic forcing at $f_n$ is amplified about \num{11} times relative to
+a forcing far from resonance. The decisive point for the problem at hand is
+\emph{where} the forcing can enter. The electromagnetic torque \eqref{eq:Te}
+acts directly on the generator mass \eqref{eq:swing}, and because the torsional
+mode is generator-dominated (large $|r_{\omega_e}|$ and participation) it is
+both observable and controllable from the electrical port. A periodic power
+disturbance
+\begin{equation}
+  P_e(t) = P_0 + \hat{P}\sin(2\pi f\, t)
+  \label{eq:Pe-forcing}
+\end{equation}
+produces an oscillating $T_e$; as $f \to f_n$ the torsional response
+$\theta_s,\omega_s,T_{\mathrm{sh}}$ builds up towards a steady-state amplitude
+proportional to $Q$.
+
+This is the linear analogue of \emph{sub-synchronous torsional interaction}
+(SSTI/SSR): an electrical source---here the converter and the connected
+grid---exchanging energy with a lightly damped mechanical torsional mode. In
+the full aeroelastic FMU model this path is effectively closed, since the
+torque controller (ROSCO) internally computes the generator torque from the
+measured speed and thereby rejects external power/torque commands. In the
+simplified model, by contrast, the path is \emph{open by construction} through
+\eqref{eq:Te}, which makes it a suitable tool for demonstrating the phenomenon.
+The experimental verification---injecting a \SI{3.49}{\hertz} electrical
+disturbance and detecting the build-up in $T_{\mathrm{sh}}$, $\omega_s$ and
+$\theta_s$, compared against an off-resonance case---is treated in
+\S\ref{sec:forcedresponse}.

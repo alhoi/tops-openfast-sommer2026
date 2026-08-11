@@ -12,6 +12,7 @@ from . import vsc
 from . import UIC
 from . import UIC_pq
 from . import windturbine
+from . import windturbine_tower
 from . import FMUtoUIC
 from . import FMUtoUICdrivetrain
 from . import perturbations

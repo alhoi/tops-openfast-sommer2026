@@ -1,0 +1,100 @@
+% =====================================================================
+%  Seksjon: Den ytre frekvensstøtte-droopen i vindturbinmodellen.
+%  Kilde:   src/tops_openfast/dyn_models/windturbine_tower.py
+%             _droop_command(), P_ref_components(), set_grid_frequency_hz()
+%  Driver:  casestudies/dyn_sim/test_WT_LEOGO_tower_sim.py  (feed_grid_frequency)
+%  Preamble: amsmath, amssymb, graphicx, booktabs, siunitx
+%           + \DeclareSIUnit{\pu}{pu}   (per-unit, used by \SI{}{\pu})
+% =====================================================================
+
+\section{The Outer Wind-Turbine Frequency-Support Droop}
+\label{sec:outer-droop}
+
+To place the tower-mode interaction in an operationally realistic setting, the
+reduced turbine of \S\ref{sec:simplified-tower-model} carries an optional
+\emph{frequency-support droop}: on an islanded platform grid such as LEOGO the
+wind turbine is expected to help arrest frequency excursions after a disturbance,
+the same service the gas-turbine governors provide. This section defines that
+outer droop law; whether it is actually needed, given that the converter already
+contains a droop, is the subject of \S\ref{sec:outer-droop-necessity}.
+
+\subsection{Control law}
+\label{subsec:od-law}
+
+The droop is implemented in \texttt{WindTurbineTower.\_droop\_command}. The
+turbine is first \emph{de-loaded}: instead of tracking the maximum-power-tracking
+(MPT) point \(P_{\mathrm{avail}}\), it holds a reduced base reference
+\begin{equation}
+  P_{\mathrm{base}} = \operatorname{clip}\!\big(
+    P_{\mathrm{avail}} - P_{\mathrm{hr}},\;0,\;P_{\mathrm{avail}}\big),
+  \label{eq:od-base}
+\end{equation}
+keeping a headroom reserve \(P_{\mathrm{hr}}\) (parameter
+\(\texttt{headroom\_pu}\), on the UIC base) available for upward support. On top
+of the base it adds a proportional response to the measured grid-frequency
+deviation,
+\begin{equation}
+  \Delta P = K_{\mathrm{droop}}\,\big(f_{\mathrm{nom}} - f_{\mathrm{grid}}\big),
+  \qquad
+  P_{\mathrm{ref}} = \operatorname{clip}\!\big(
+    P_{\mathrm{base}} + \Delta P,\;0,\;P_{\mathrm{avail}}\big),
+  \label{eq:od-delta}
+\end{equation}
+so that a frequency dip (\(f_{\mathrm{grid}} < f_{\mathrm{nom}}\)) raises the
+power reference and injects extra active power into the grid, up to the headroom
+limit. The gain \(K_{\mathrm{droop}}\) is \(\texttt{k\_droop\_pu\_per\_hz}\) and
+\(f_{\mathrm{nom}} = \SI{50}{\hertz}\). The droop is toggled with
+\(\texttt{droop\_enable}\); when it is off, \(\Delta P = 0\) and the turbine
+simply holds the de-loaded base \eqref{eq:od-base}.
+
+An important detail for the experiments is that the headroom \eqref{eq:od-base}
+is applied \emph{whether or not} the droop is enabled. Both the droop-off and
+droop-on runs therefore share the same de-loaded operating point, and their
+difference isolates the droop \emph{response} \eqref{eq:od-delta} alone, with no
+confounding change in the base loading.
+
+\subsection{Measured grid frequency}
+\label{subsec:od-freq}
+
+The frequency the droop reacts to is supplied from the network side of the
+co-simulation through \texttt{set\_grid\_frequency\_hz}. In the LEOGO driver the
+platform is dominated by the three coherent gas-turbine synchronous machines on
+the main bus, so the frequency is taken as the centre-of-inertia (mean
+generator-speed) frequency
+\begin{equation}
+  f_{\mathrm{grid}} = f_n\big(1 + \overline{\Delta\omega}_{\mathrm{gen}}\big),
+  \label{eq:od-fgrid}
+\end{equation}
+with \(f_n = \SI{50}{\hertz}\) and \(\overline{\Delta\omega}_{\mathrm{gen}}\) the
+mean per-unit generator-speed deviation. Because the generator speed is a state,
+\(f_{\mathrm{grid}}\) is available before the algebraic solve at each integration
+stage and is fed to the turbine, which reads it when it forms \(P_{\mathrm{ref}}\)
+(\texttt{feed\_grid\_frequency} in the driver). This closes an outer,
+network-measured loop around the turbine, distinct from the converter's own local
+droop (\S\ref{sec:outer-droop-necessity}).
+
+\subsection{Parameters and defaults}
+\label{subsec:od-params}
+
+Table~\ref{tab:od-params} lists the droop parameters. In the headline scenario of
+\S\ref{subsec:nt-tradeoff} the droop uses \(K_{\mathrm{droop}} =
+\SI{0.75}{\pu\per\hertz}\) with a \SI{10}{\percent} headroom reserve; these are
+the values for which the frequency-support benefit and the tower-loading penalty
+are reported.
+
+\begin{table}[t]
+  \centering
+  \caption{Outer frequency-support droop parameters
+  (\texttt{WindTurbineTower}).}
+  \label{tab:od-params}
+  \begin{tabular}{lll}
+    \toprule
+    Parameter & Symbol & Value \\
+    \midrule
+    Nominal frequency        & \(f_{\mathrm{nom}}\)      & \SI{50}{\hertz} \\
+    Droop gain               & \(K_{\mathrm{droop}}\)    & \SI{0.75}{\pu\per\hertz} \\
+    Headroom reserve         & \(P_{\mathrm{hr}}\)       & \SI{0.10}{\pu} (UIC base) \\
+    Enable flag              & \(\texttt{droop\_enable}\) & \(\{0,1\}\) \\
+    \bottomrule
+  \end{tabular}
+\end{table}

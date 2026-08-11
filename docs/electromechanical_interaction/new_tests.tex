@@ -1,0 +1,234 @@
+% =====================================================================
+%  Seksjon: Nye co-simuleringsscenarioer på den reduserte modellen mot
+%           hele LEOGO-nettet (driftshendelse, frekvensstøtte-avveining,
+%           resonant prosesslast, resonanskurve).
+%  Driver:  casestudies/dyn_sim/test_WT_LEOGO_tower_sim.py
+%  Analyse: casestudies/dyn_sim/_analyze_gt_trip.py
+%           casestudies/dyn_sim/_analyze_freq_support.py
+%           casestudies/dyn_sim/_analyze_resonance.py
+%           casestudies/dyn_sim/sweep_ss_resonance.py
+%  Data:    results/tower_test/{gt_trip,gt_trip_support,resonance_0234,
+%                               ss_resonance_curve}.{csv,png}
+%  Preamble: amsmath, amssymb, graphicx, booktabs, siunitx
+%           + \DeclareSIUnit{\pu}{pu}   (per-unit, used by \SI{}{\pu})
+% =====================================================================
+
+\section{New Co-Simulation Scenarios on the LEOGO Network}
+\label{sec:new-tests}
+
+With the tower modes calibrated (\S\ref{sec:simplified-tower-model}) and the
+shaft-torque drive path established (\S\ref{sec:shaft-excitation}), the reduced
+\texttt{WindTurbineTower} is exercised against the full LEOGO microgrid in a
+common test harness (\texttt{test\_WT\_LEOGO\_tower\_sim.py}). The turbine
+replaces the original LEOGO WTG converter at \texttt{Busbar WTG1 LV} through a
+UIC interface, and the three gas-turbine generators, their governors and AVRs,
+and the platform loads are simulated as usual with a fixed communication step of
+\SI{0.01}{\second}. The harness applies disturbances at the main gas-turbine bus
+--- a smooth (ramped) load step, a sustained sinusoidal load modulation, or a
+short circuit --- and logs the grid frequency, the turbine electrical variables,
+and both tower accelerations. Four scenarios are reported, each targeting a
+different aspect of the electro-mechanical interaction.
+
+\subsection{A discrete grid event: the tower as a mechanical band-pass filter}
+\label{subsec:nt-gttrip}
+
+The first scenario is a realistic single disturbance: a step change in platform
+load, representative of a large consumer switching or a generator trip, applied
+as a smooth shunt load at the main bus. The step is broadband --- most of its
+spectral energy lies near DC --- yet the tower side-to-side response is a clean
+decaying oscillation at \(f_{\mathrm{ss}}\approx\SI{0.234}{\hertz}\), the modal
+frequency, not at the (much slower) frequency of the grid transient itself. The
+step acts as an impulsive ``kick'' that excites the free side-to-side ring-down
+of \eqref{eq:stm-tau}, which decays with \(\tau_{\mathrm{ss}}\approx
+\SI{13.6}{\second}\). The fore-aft mode barely responds: the ratio of peak
+side-to-side to peak fore-aft acceleration is of order \(\sim\!40\), confirming
+that even a broadband electrical event is filtered by the tower into an almost
+purely side-to-side motion. This is the mechanical-band-pass picture of
+\S\ref{subsec:se-selectivity}, seen for a discrete event
+(Figure~\ref{fig:nt-gttrip}).
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/gt_trip.png}
+  \caption{Discrete grid event (reduced model): a broadband platform-load step
+  produces a decaying side-to-side ring-down at the tower modal frequency
+  (\SI{0.234}{\hertz}), while the fore-aft mode stays essentially flat. The tower
+  band-pass-filters the electrical disturbance onto its side-to-side mode.}
+  \label{fig:nt-gttrip}
+\end{figure}
+
+\subsection{The frequency-support trade-off}
+\label{subsec:nt-tradeoff}
+
+The headline scenario quantifies the central tension of the thesis: the wind
+turbine's frequency-support droop (\S\ref{sec:outer-droop}) helps the grid but
+loads the tower. A \emph{temporary} \SI{5}{\mega\watt} load step is applied at
+the main bus (smooth \SI{2}{\second} ramps, held for \SI{50}{\second}, then
+removed), and the co-simulation is run twice with the identical de-loaded
+operating point: once with the droop off and once with it on
+(\(K_{\mathrm{droop}}=\SI{0.75}{\pu\per\hertz}\), \SI{10}{\percent} headroom).
+Because the tower modes are forward-coupled (\S\ref{subsec:stm-forward}), the two
+runs differ only in the droop action, so the comparison is clean.
+
+The results are collected in Table~\ref{tab:nt-tradeoff}. On the grid side the
+droop helps: it cuts the settled (plateau) frequency dip by \SI{20}{\percent}
+(from \SI{0.089}{\hertz} to \SI{0.071}{\hertz}) and the transient dip by
+\SI{15}{\percent}, by injecting an extra \(\approx\SI{0.008}{\pu}\) of active power
+from the headroom reserve. On the mechanical side the same injection is the
+penalty: the side-to-side acceleration grows by a factor \(1.72\) in both peak
+and RMS. The fore-aft response stays negligible. The interaction is thus not
+merely academic --- providing a genuine grid service (frequency support) directly
+and measurably increases the resonance-prone tower loading, a coupling that a
+turbine-level or grid-level design would need to weigh against each other.
+
+\begin{table}[t]
+  \centering
+  \caption{Frequency-support trade-off (reduced model): temporary
+  \SI{5}{\mega\watt} load step, droop off versus on
+  (\(K_{\mathrm{droop}}=\SI{0.75}{\pu\per\hertz}\), \SI{10}{\percent} headroom).
+  The droop reduces the grid-frequency dip but increases the tower side-to-side
+  loading.}
+  \label{tab:nt-tradeoff}
+  \begin{tabular}{lccc}
+    \toprule
+    Quantity & Off & On & Ratio on/off \\
+    \midrule
+    Transient freq.\ dip [\si{\hertz}]     & 0.0897 & 0.0760 & 0.85 \\
+    Plateau freq.\ dip [\si{\hertz}]       & 0.0893 & 0.0714 & 0.80 \\
+    WT power, plateau [\si{\pu}]            & 0.1432 & 0.1513 & --- \\
+    \midrule
+    SS accel.\ peak [\si{\metre\per\second\squared}] & 0.0137 & 0.0235 & 1.72 \\
+    SS accel.\ RMS  [\si{\metre\per\second\squared}] & 0.0028 & 0.0049 & 1.72 \\
+    FA accel.\ peak [\si{\metre\per\second\squared}] & 0.0005 & 0.0009 & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/gt_trip_support.png}
+  \caption{Frequency-support trade-off (reduced model): grid frequency (top), WT
+  active power (middle) and tower side-to-side acceleration (bottom) for the
+  temporary load step, with the droop off versus on. The droop lifts the power
+  and shrinks the frequency dip, but rings the side-to-side mode
+  \(\approx\!1.7\times\) harder.}
+  \label{fig:nt-tradeoff}
+\end{figure}
+
+\subsection{Resonant excitation by a cyclic process load}
+\label{subsec:nt-resonance}
+
+Where the load step is broadband and only \emph{rings} the tower down, this
+scenario supplies a \emph{sustained} excitation in the tower band and drives the
+side-to-side mode into genuine resonance. It represents a realistic islanded-grid
+situation: a large cyclic mechanical load --- a reciprocating compressor or a
+beam / sucker-rod pump running near 14 strokes per minute
+(\(=\SI{0.234}{\hertz}\)) --- appears as a periodic active-power oscillation at
+the main bus. A \(\pm\SI{5}{\mega\watt}\) sinusoidal load at \SI{0.234}{\hertz}
+is switched on at \(t=\SI{20}{\second}\), producing a grid-frequency oscillation
+of \(\approx\SI{67}{\milli\hertz}\) amplitude at that frequency.
+
+Because \SI{0.234}{\hertz} coincides with the side-to-side natural frequency, the
+mode is driven resonantly through the open path \eqref{eq:se-path} and its
+amplitude \emph{builds up} over roughly \(3\text{--}4\,\tau_{\mathrm{ss}}\approx
+\SI{45}{\second}\) to a large sustained value, rather than decaying as in
+\S\ref{subsec:nt-gttrip} (Figure~\ref{fig:nt-resonance}). The settled side-to-side
+lock-in acceleration reaches
+\(A_{\mathrm{ss}} = \SI{0.191}{\metre\per\second\squared}\) --- about four times
+the peak of the broadband step --- while the fore-aft lock-in is only
+\(A_{\mathrm{fa}} = \SI{0.0063}{\metre\per\second\squared}\), a side-to-side/
+fore-aft ratio of \(\approx\!30\). The build-up versus ring-down contrast is the
+defining signature of resonant, as opposed to broadband, excitation.
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/resonance_0234.png}
+  \caption{Resonant excitation (reduced model): a \(\pm\SI{5}{\mega\watt}\)
+  cyclic process load at \SI{0.234}{\hertz} (top) drives a
+  \(\approx\SI{67}{\milli\hertz}\) grid-frequency oscillation (middle), and the
+  side-to-side mode builds up over \(\sim\!\SI{40}{\second}\) to a sustained
+  amplitude while the fore-aft mode stays flat (bottom, with the side-to-side
+  amplitude envelope dashed).}
+  \label{fig:nt-resonance}
+\end{figure}
+
+\subsection{The resonance curve: frequency selectivity of the coupling}
+\label{subsec:nt-curve}
+
+Sweeping the cyclic-load frequency from \SIrange{0.200}{0.300}{\hertz} and
+measuring the settled side-to-side lock-in amplitude at each frequency
+(\texttt{sweep\_ss\_resonance.py}) traces out the resonance curve of
+Table~\ref{tab:nt-curve} and Figure~\ref{fig:nt-curve}. It is a clean, sharp
+Lorentzian peak: the side-to-side amplitude climbs from
+\SI{0.051}{\metre\per\second\squared} at \SI{0.200}{\hertz} to a maximum of
+\SI{0.190}{\metre\per\second\squared} at exactly \SI{0.234}{\hertz} --- matching
+both the calibrated modal frequency and the dedicated resonant run
+(\S\ref{subsec:nt-resonance}) --- and falls away symmetrically above it. The
+half-power width is only \(\approx\SI{0.026}{\hertz}\), a quality factor
+\(Q\approx 9\) consistent with \(\zeta_{\mathrm{ss}}=\num{0.05}\)
+(\(Q=1/2\zeta=10\)). The grid-frequency drive is essentially flat
+(\(\approx\SI{67}{\milli\hertz}\)) across the whole band, so the peak is the
+tower's mechanical resonance and not a feature of the excitation. The fore-aft
+amplitude stays below \SI{0.0065}{\metre\per\second\squared} everywhere,
+including where the load frequency crosses the (nearly coincident) fore-aft
+frequency --- once more the drive path, not the frequency, is what selects the
+side-to-side mode.
+
+The practical reading is the frequency selectivity itself: a cyclic platform load
+produces significant tower loading only if its fundamental or a harmonic falls
+within the narrow \(\approx\SI{0.026}{\hertz}\) window around
+\SI{0.234}{\hertz}; outside it the coupling is negligible. This both bounds the
+risk and identifies precisely which operational frequencies to avoid.
+
+\begin{table}[t]
+  \centering
+  \caption{Reduced-model resonance curve: settled side-to-side and fore-aft
+  lock-in acceleration versus cyclic-load frequency (\(\pm\SI{5}{\mega\watt}\)).
+  The bold row marks the side-to-side mode.}
+  \label{tab:nt-curve}
+  \begin{tabular}{lcc}
+    \toprule
+    \(f\) [\si{\hertz}] &
+      \(A_{\mathrm{ss}}\) [\si{\metre\per\second\squared}] &
+      \(A_{\mathrm{fa}}\) [\si{\metre\per\second\squared}] \\
+    \midrule
+    0.200          & 0.0507 & 0.0009 \\
+    0.216          & 0.0948 & 0.0015 \\
+    0.226          & 0.1538 & 0.0031 \\
+    0.230          & 0.1780 & 0.0052 \\
+    \textbf{0.234} & \textbf{0.1903} & \textbf{0.0064} \\
+    0.238          & 0.1828 & 0.0059 \\
+    0.242          & 0.1623 & 0.0038 \\
+    0.248          & 0.1297 & 0.0015 \\
+    0.255          & 0.1026 & 0.0011 \\
+    0.280          & 0.0578 & 0.0005 \\
+    0.300          & 0.0440 & 0.0003 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  % \includegraphics[width=0.8\linewidth]{fig/ss_resonance_curve.png}
+  \caption{Reduced-model resonance curve: settled side-to-side (red) and fore-aft
+  (green) acceleration amplitude versus the frequency of a \(\pm\SI{5}{\mega\watt}\)
+  cyclic grid load. The side-to-side response peaks sharply at \SI{0.234}{\hertz}
+  (\(Q\approx 9\)); the fore-aft response stays flat, even where the load
+  frequency crosses the fore-aft mode.}
+  \label{fig:nt-curve}
+\end{figure}
+
+\subsection{Summary}
+\label{subsec:nt-summary}
+
+Taken together the four scenarios trace the interaction from mechanism to
+operational consequence. A discrete grid event shows the tower band-pass-filtering
+a broadband disturbance onto its side-to-side mode
+(\S\ref{subsec:nt-gttrip}); a sustained cyclic load shows the same mode driven
+into resonant build-up (\S\ref{subsec:nt-resonance}); the sweep shows the coupling
+is sharply frequency-selective about \SI{0.234}{\hertz} (\S\ref{subsec:nt-curve});
+and the frequency-support scenario shows that acting on the grid with the turbine
+directly aggravates that tower loading (\S\ref{subsec:nt-tradeoff}). All four run
+in real time on the reduced model against the full LEOGO network, complementing
+the high-fidelity FMU evidence of \S\ref{sec:tower-ss-resonance} with a fast,
+fully closed electrical-to-mechanical demonstration.

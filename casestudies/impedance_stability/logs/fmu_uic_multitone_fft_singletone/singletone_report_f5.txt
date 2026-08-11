@@ -1,0 +1,4 @@
+Single-tone cross-check (fmu)
+  f = 5 Hz  tag = f5
+  T_win = 120 s  amp/tone = 0.07071 pu
+  kappa(Y) = 1.271  detVt = 6.736e-12  |Ydd| = 6.526 pu (16.29 dB)

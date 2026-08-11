@@ -396,6 +396,18 @@ class FMUtoUICdrivetrain(DAEModel):
             input_power_kW = tq_ideal * self._omega_base_rad_s / 1e3
             # Keep GenPwr driven from TOPS (grid measurement) unless we explicitly want to echo power as well.
             # (Computing an "ideal power" from torque requires a reliable GenSpeed sample; cached value may be None/stale.)
+
+        # Optional diagnostic modulation of the coupling (generator) torque
+        # command. This directly forces the OpenFAST drivetrain torque at a
+        # chosen frequency (e.g. to probe the side-to-side tower mode),
+        # bypassing the weak grid -> torque path. The driver sets
+        # self._te_mod_factor before each step_fmu() call; the default of 1.0
+        # (when the attribute is absent) leaves the coupling torque unchanged.
+        # It is not applied during the startup echo window.
+        te_mod_factor = float(getattr(self, "_te_mod_factor", 1.0))
+        if te_mod_factor != 1.0 and self._startup_echo_steps_left <= 0:
+            input_torque = float(input_torque) * te_mod_factor
+
         self.fmu.setReal([self.vrs['GenSpdOrTrq']], [input_torque])
         self._gen_spdortrq_kNm_set = input_torque
         self._genpwr_kW_set = input_power_kW
@@ -403,6 +415,21 @@ class FMUtoUICdrivetrain(DAEModel):
         
         # Demanded electrical power (kW) for controller.
         self._elec_pwr_com_kW_last = float(self._elec_pwr_com_kW)
+
+        # Optional diagnostic modulation of the demanded electrical power
+        # (ElecPwrCom) command. With VSContrl=5 (ROSCO), the external generator
+        # torque input is ignored, but ElecPwrCom is the grid-side power demand
+        # the controller does act on. Modulating it at the side-to-side tower
+        # frequency represents a grid/converter power-command oscillation that
+        # the controller translates into a generator-torque variation, which
+        # reacts on the nacelle and can excite the side-to-side tower mode.
+        # The driver sets self._epc_mod_factor before each step_fmu() call;
+        # the default of 1.0 leaves the command unchanged. Not applied during
+        # the startup echo window.
+        epc_mod_factor = float(getattr(self, "_epc_mod_factor", 1.0))
+        if epc_mod_factor != 1.0 and self._startup_echo_steps_left <= 0:
+            self._elec_pwr_com_kW_last = float(self._elec_pwr_com_kW_last) * epc_mod_factor
+
         self.fmu.setReal([self.vrs['ElecPwrCom']], [float(self._elec_pwr_com_kW_last)])
 
         if abs(float(dt) - self._fmu_dt) > 1e-12:

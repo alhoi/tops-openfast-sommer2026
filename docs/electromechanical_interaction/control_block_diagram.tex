@@ -1,0 +1,83 @@
+% =====================================================================
+%  Reguleringsteknisk blokkskjema: elektromekanisk kobling LEOGO <-> WT
+%  Frekvensstøtte (syntetisk treghet) -> ROSCO -> vindturbin -> UIC -> nett
+%
+%  Kompiler med pdflatex (standalone -> ferdig beskaaret figur):
+%      pdflatex control_block_diagram.tex
+%  Bruk i poster: \includegraphics{control_block_diagram.pdf}
+%  eller lim inn tikzpicture-blokken direkte.
+% =====================================================================
+\documentclass[border=10pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,backgrounds,fit}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\small,
+  block/.style={draw,rounded corners=3pt,align=center,line width=0.7pt,
+                minimum height=16mm,minimum width=27mm},
+  plant/.style={block,fill=green!9},
+  ctrl/.style={block,fill=orange!16},
+  conv/.style={block,fill=cyan!12},
+  gridb/.style={block,fill=black!8},
+  fs/.style={block,fill=red!9,minimum width=64mm,minimum height=18mm},
+  dist/.style={draw,dashed,rounded corners=2pt,align=center,fill=yellow!22,
+               minimum height=11mm,minimum width=27mm},
+  flow/.style={-{Stealth[length=2.8mm]},line width=1.0pt},
+  meas/.style={-{Stealth[length=2.3mm]},line width=0.7pt,black!55},
+  zmq/.style={-{Stealth[length=2.8mm]},line width=1.15pt,densely dashed,red!72!black},
+]
+
+% --- physical (power) row, left -> right --------------------------------
+\node[plant] (wt)  {\textbf{Vindturbin}\\[2pt]{\footnotesize OpenFAST\\ aero $\cdot$ drivlinje $\cdot$ \textbf{tårn}}};
+\node[conv,right=32mm of wt]   (uic)  {\textbf{UIC}\\[2pt]{\footnotesize grid-formende\\ omformer}};
+\node[gridb,right=26mm of uic] (grid) {\textbf{LEOGO-nett}\\[2pt]{\footnotesize 3 gassturbiner\\ governor / AVR}};
+
+% --- controller above the turbine --------------------------------------
+\node[ctrl,above=22mm of wt,xshift=20mm] (rosco)
+  {\textbf{ROSCO}\\[2pt]{\footnotesize moment- \& pitch-\\ regulator}};
+
+% --- synthetic inertia / frequency support (top) -----------------------
+\node[fs,above=13mm of rosco,xshift=8mm] (fs)
+  {\textbf{Syntetisk treghet / frekvensstøtte}\\[4pt]
+   $\displaystyle \Delta T \;=\; -\,K_{d}\,\Delta f \;-\; K_{i}\,\frac{d\,\Delta f}{dt}$\\[3pt]
+   {\footnotesize lavpassfiltrert $f_{\mathrm{grid}}$,\quad $\Delta f = f_{\mathrm{grid}}-f_{0}$}};
+
+% --- disturbance -------------------------------------------------------
+\node[dist,above=13mm of grid] (dist) {Prosesslast-osc.\\ / GT-utfall};
+
+% ===== power flow (left -> right) =====
+\draw[flow] (wt.east)  -- node[above]{$P_e=T_g\,\omega$} (uic.west);
+\draw[flow] (uic.east) -- node[above]{$P,\ i$}           (grid.west);
+
+% ===== inner control loop: ROSCO <-> turbine =====
+\draw[flow] (rosco.west) to[out=180,in=100]
+      node[pos=0.42,left,align=center]{$T_g$ (moment)\\ $\beta$ (pitch)} (wt.north);
+\draw[meas] ($(wt.north)+(10mm,0)$) to[out=80,in=290]
+      node[pos=0.55,right]{$\omega_g$} (rosco.south east);
+
+% ===== synthetic inertia -> ROSCO (ZMQ co-sim link) =====
+\draw[zmq] (fs.south) -- node[right,align=left]{$\Delta T$\\[-1pt]{\scriptsize (via ZMQ)}} (rosco.north);
+
+% ===== disturbance into the grid =====
+\draw[flow] (dist.south) -- node[right]{$\Delta P$} (grid.north);
+
+% ===== feedback: measured grid frequency -> synthetic inertia =====
+\draw[meas] (grid.east) -- ++(11mm,0)
+      |- node[pos=0.2,right]{$f_{\mathrm{grid}}$} (fs.east);
+
+% ===== co-simulation domain shading (optional context) =====
+\begin{scope}[on background layer]
+  \node[draw=green!45!black,dashed,rounded corners,inner sep=6mm,
+        label={[green!45!black]below:{\footnotesize FMU (OpenFAST)}},
+        fit=(wt)(rosco)] {};
+  \node[draw=blue!55!black,dashed,rounded corners,inner sep=6mm,
+        label={[blue!55!black]below:{\footnotesize TOPS (nett + frekvensstøtte)}},
+        fit=(fs)(uic)(grid)(dist)] {};
+\end{scope}
+
+\end{tikzpicture}
+\end{document}

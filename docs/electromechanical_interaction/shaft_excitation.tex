@@ -1,0 +1,153 @@
+% =====================================================================
+%  Seksjon: Skaft-/generatormoment-eksitasjon av tårnmodene i begge
+%           modeller (forenklet WindTurbineTower + OpenFAST-FMU), inkl.
+%           manipulering av ROSCO open-loop-fila, og SS-vs-fore-aft-
+%           selektiviteten.
+%  Kilder:  src/tops_openfast/dyn_models/windturbine_tower.py
+%           casestudies/dyn_sim/sweep_resonance.py (FMU, OL-table)
+%           casestudies/dyn_sim/_contrast_ss_fa.py
+%           test1002/ControlData/ROSCO.IEA15MW.IN  (OL_Mode, Ind_GenTq)
+%  Preamble: amsmath, amssymb, graphicx, booktabs, siunitx, hyperref
+% =====================================================================
+
+\section{Shaft (Generator-Torque) Excitation of the Tower Modes}
+\label{sec:shaft-excitation}
+
+This project studies electro-mechanical interactions in offshore wind turbines
+coupled to a grid --- here one connected to the LEOGO islanded platform network.
+One important such interaction is whether an \emph{electrical} disturbance can
+excite a \emph{mechanical} tower mode. The physical link is the generator/air-gap
+electromagnetic torque acting through the shaft: fluctuations in the delivered
+power \(P_e\) become fluctuations in \(T_e = P_e/(\omega_{e,\mathrm{filt}}\eta)\),
+whose nacelle reaction torque bends the tower side to side. This section collects
+how that shaft-torque excitation is realised in the two models --- the reduced
+\texttt{WindTurbineTower} of \S\ref{sec:simplified-tower-model} and the
+OpenFAST-FMU of \S\ref{sec:openfast-excitation} --- and shows that the torque
+path selectively reaches the side-to-side (SS) mode but not the fore-aft (FA)
+mode.
+
+\subsection{Reduced model: an open electrical-to-mechanical path}
+\label{subsec:se-reduced}
+
+In \texttt{WindTurbineTower} the side-to-side oscillator \eqref{eq:stm-ss} is
+driven directly by \(T_e\), and \(T_e\) is computed from the power the converter
+actually delivers to the grid. The path
+\begin{equation}
+  \text{grid disturbance}\;\longrightarrow\;P_e
+  \;\longrightarrow\;T_e
+  \;\longrightarrow\;\text{nacelle reaction moment}
+  \;\longrightarrow\;q_{\mathrm{ss}}
+  \label{eq:se-path}
+\end{equation}
+is therefore \emph{open by construction}: no controller intercepts it, unlike in
+the FMU. A sustained sinusoidal grid load at the modal frequency thus feeds the
+SS mode continuously and drives it into resonance, and a swept load traces out
+its resonance curve. Both are demonstrated quantitatively in
+\S\ref{sec:new-tests}; here the point is only that the reduced model provides the
+genuinely closed electrical\(\to\)mechanical demonstration that the FMU cannot,
+because in the FMU ROSCO owns the torque.
+
+\subsection{OpenFAST model: injecting torque through the ROSCO open-loop file}
+\label{subsec:se-openfast}
+
+In the OpenFAST build used here ROSCO (\texttt{VSContrl}=5) computes the
+generator torque internally from the measured generator speed and rejects every
+external torque or power command passed across the FMU interface
+(\texttt{GenSpdOrTrq}, \texttt{ElecPwrCom}); this is the negative result
+documented in \S\ref{subsec:of-electrical}. Consequently the network cannot reach
+the OpenFAST \emph{structure} through the normal electrical inputs, and the only
+channel that does reach the structural solver is ROSCO's own \emph{open-loop
+control} table.
+
+\paragraph{What was changed in the ROSCO input.}
+ROSCO reads its input files at runtime, so the torque channel was opened without
+rebuilding the FMU, by editing \texttt{test1002/ControlData/ROSCO.IEA15MW.IN}:
+\begin{itemize}
+  \item \texttt{OL\_Mode}: \(0\to1\) --- enable open-loop control versus time.
+  \item \texttt{Ind\_GenTq}: \(0\to2\) --- take the generator torque from column~2
+        (in \si{\newton\metre}) of the open-loop table, with time in column~1
+        (\texttt{Ind\_Breakpoint}=1).
+  \item A new table file \texttt{OLInput\_ROSCO.dat} was written with the
+        prescribed torque time series.
+\end{itemize}
+The prescribed torque is a sinusoidal modulation about the Region-2 operating
+torque \(T_0\),
+\begin{equation}
+  T_{\mathrm{gen}}(t) = T_0\,\big[\,1 + a\,
+    \sin\!\big(2\pi f\,(t-t_{\mathrm{on}})\big)\,\big]
+    \mathbb{1}[t\ge t_{\mathrm{on}}],\qquad a = 0.10,
+  \label{eq:se-ol-forcing}
+\end{equation}
+i.e. a \(\pm\SI{10}{\percent}\) generator-torque oscillation. This overrides
+ROSCO's torque regulation entirely, so the runs are kept short and the rotor
+speed monitored for drift, with \(T_0\) matched to the aerodynamic torque at the
+operating wind speed so that the net drift over the window is negligible.
+
+\paragraph{Did it work, and what did it show.}
+It worked, and it is the mechanism behind the frequency sweep of
+\S\ref{sec:tower-ss-resonance}. Injecting \eqref{eq:se-ol-forcing} at the modal
+frequency produced a tower-top side-to-side acceleration (\texttt{YawBrTAyp})
+that \emph{builds up} to a sustained forced amplitude, rather than the free decay
+seen in all the ignored \texttt{GenSpdOrTrq}/\texttt{ElecPwrCom} attempts ---
+direct confirmation that the torque now reaches the structure. Sweeping \(f\)
+gave a sharp resonance peaking in the SS band
+(\SIrange{0.234}{0.245}{\hertz}), with a peak side-to-side acceleration of
+\(\approx\SI{0.26}{\metre\per\second\squared}\) and roughly \(60\times\)
+amplification over the off-resonance floor (Table~\ref{tab:ss-sweep}). The
+important caveat, stated already in \S\ref{subsec:ss-torque-path}, is that the
+torque here is \emph{imposed} through the open-loop table rather than produced by
+a closed grid\(\to\)torque feedback: the experiment proves the \emph{structural}
+frequency selectivity of the OpenFAST tower, while the reduced model
+(\S\ref{subsec:se-reduced}) supplies the genuinely closed electrical drive. The
+two are complementary --- the FMU shows the real tower amplifies a torque
+oscillation, and the reduced model shows the grid can supply that oscillation.
+
+\subsection{Why side-to-side and not fore-aft}
+\label{subsec:se-selectivity}
+
+The two first tower modes are nearly degenerate in frequency
+(\(f_{\mathrm{ss}}\approx f_{\mathrm{fa}}\approx\SI{0.234}{\hertz}\)), so what
+separates them under an electrical disturbance is not frequency but the
+\emph{drive path}. The side-to-side mode is driven by the generator torque, which
+carries the grid disturbance directly (\eqref{eq:se-path}). The fore-aft mode is
+driven by the rotor thrust \(F_T\), which a grid disturbance can reach only
+indirectly, through the drivetrain speed,
+\begin{equation}
+  \text{grid}\to P_e\to T_e\to \omega_m\to \lambda\to C_T\to F_T
+  \to q_{\mathrm{fa}},
+  \label{eq:se-fa-path}
+\end{equation}
+i.e. a second-order path gated by the very large rotor inertia. At a fixed wind
+speed the thrust barely moves when the grid is perturbed, so the fore-aft
+response to an electrical disturbance is much smaller than the side-to-side
+response. This asymmetry is exactly why the SS mode --- and not the frequency-
+adjacent FA mode --- is the electrically resonance-prone one.
+
+The reduced model makes this quantitative. Because the two modes are switched
+independently and share the same electrical solution
+(\S\ref{subsec:stm-forward}), a single co-simulation exposes both responses to
+the identical disturbance. Under a sustained load oscillation at
+\SI{0.234}{\hertz} the side-to-side lock-in acceleration exceeds the fore-aft one
+by a factor of \(\sim 30\) (\S\ref{subsec:nt-resonance}), and under a discrete
+grid event the ratio of peak accelerations is of the same order
+(\S\ref{subsec:nt-gttrip}). The tower acts as a mechanical band-pass filter on
+the electrical disturbance, and the generator-torque path selects the
+side-to-side mode as its output. A lock-in / contrast analysis of the two
+accelerations at the forcing frequency is provided by
+\texttt{casestudies/dyn\_sim/\_contrast\_ss\_fa.py}.
+
+\subsection*{Sources}
+\label{subsec:se-sources}
+
+\begin{itemize}
+  \item ROSCO open-loop control (\texttt{OL\_Mode}, \texttt{Ind\_GenTq},
+        \texttt{OLInput\_ROSCO.dat}) and the internal \(K\omega^2\) torque law:
+        Abbas et al.\ (2022), \emph{A reference open-source controller for fixed
+        and floating offshore wind turbines}, Wind Energy Science 7, 53--73,
+        \href{https://doi.org/10.5194/wes-7-53-2022}{doi.org/10.5194/wes-7-53-2022};
+        documentation \href{https://rosco.readthedocs.io/}{rosco.readthedocs.io}
+        (see the \emph{Open Loop Input} page); source
+        \href{https://github.com/NREL/ROSCO}{github.com/NREL/ROSCO}.
+  \item OpenFAST (FMU export, \texttt{YawBrTAyp} tower-top acceleration output):
+        \href{https://openfast.readthedocs.io/}{openfast.readthedocs.io}.
+\end{itemize}

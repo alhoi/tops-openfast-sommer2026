@@ -46,7 +46,7 @@ class UIC_sig(DAEModel):
         i_ref = np.conj(s_ref/vi) 
         i_max_pu = 1.9  # 20% overrating 
         i_ref_clamped = np.minimum(abs(i_ref), i_max_pu) * np.exp(1j*np.angle(i_ref))
-        if i_ref_clamped == 1.9:
+        if np.any(np.abs(i_ref_clamped) >= i_max_pu):
             print('NB! i_ref is clamped by 1.9 pu limit')
         i_a = self.i_a(x, v)
         theta = np.angle(vi, deg=False)
@@ -170,3 +170,17 @@ class UIC_sig(DAEModel):
 
     def S_n(self, x, v):
         return self.par['S_n']
+
+
+class UIC_sig2(UIC_sig):
+    """
+    Alias of UIC_sig used to place a second, independent single-unit UIC
+    converter on the same grid (e.g. WT2 at Busbar WTG2 LV).
+
+    The base UIC_sig model has single-unit assumptions (scalar current-limit
+    check, par['xf'][0], par['S_n'][0]). Registering the two converters under
+    two different model keys ('UIC_sig' and 'UIC_sig2') keeps each converter as
+    its own single-unit model object, so the existing math is reused unchanged.
+    It adds no new behaviour.
+    """
+    pass

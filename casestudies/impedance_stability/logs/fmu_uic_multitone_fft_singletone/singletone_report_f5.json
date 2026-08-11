@@ -1,0 +1,14 @@
+{
+  "plant": "fmu",
+  "f_requested_hz": 5.0,
+  "band_tag": "f5",
+  "t_win_s": 120.0,
+  "df_fft_hz": 0.008333333333333333,
+  "amp_per_tone_pu": 0.07071067811865477,
+  "cycles": 600.0,
+  "kappa_Ydev": 1.2711949299214602,
+  "detVt_abs": 6.735603469055178e-12,
+  "detIpert_abs": 0.0024999999997877,
+  "Ydev_dd_abs_pu": 6.525794056047214,
+  "Ydev_dd_db": 16.292667280138684
+}

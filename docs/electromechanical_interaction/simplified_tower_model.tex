@@ -1,0 +1,208 @@
+% =====================================================================
+%  Seksjon: Implementering av tårnmodene (side-to-side + fore-aft) i den
+%           forenklede vindturbinmodellen (WindTurbineTower).
+%  Kilde:   src/tops_openfast/dyn_models/windturbine_tower.py
+%  Preamble: amsmath, amssymb, graphicx, booktabs, siunitx, hyperref
+%           + \DeclareSIUnit{\pu}{pu}   (per-unit, used by \SI{}{\pu})
+% =====================================================================
+
+\section{Adding the Tower Structural Modes to the Reduced Wind-Turbine Model}
+\label{sec:simplified-tower-model}
+
+The OpenFAST co-simulation of \S\ref{sec:openfast-excitation} and
+\S\ref{sec:tower-ss-resonance} established, in a high-fidelity aeroelastic model,
+that the tower side-to-side (SS) mode can be driven by a generator-torque
+oscillation. That model is, however, expensive and its electrical$\to$structure
+path is partly obstructed by ROSCO (\S\ref{subsec:ss-torque-path}). To study the
+interaction \emph{systematically} --- swept over frequency, contrasted against
+the fore-aft (FA) mode, and combined with realistic grid events on the full
+LEOGO network --- a fast, fully electrical-to-mechanical model is needed. This
+section describes such a model: \texttt{WindTurbineTower}, a superset of the
+reduced two-mass turbine of \S\ref{sec:frequency-analysis} that adds the first
+tower side-to-side and first tower fore-aft bending modes as modal degrees of
+freedom.
+
+\subsection{Modal (assumed-mode) representation}
+\label{subsec:stm-modal}
+
+Each tower mode is represented as a single-degree-of-freedom modal oscillator,
+exactly as ElastoDyn/FAST represents tower bending through a Rayleigh--Ritz mode
+shape. The side-to-side displacement \(q_{\mathrm{ss}}\) obeys
+\begin{equation}
+  \ddot{q}_{\mathrm{ss}}
+    + 2\zeta_{\mathrm{ss}}\omega_{\mathrm{ss}}\,\dot{q}_{\mathrm{ss}}
+    + \omega_{\mathrm{ss}}^2\,q_{\mathrm{ss}}
+  = g_{\mathrm{ss}}\,T_e,
+  \qquad \omega_{\mathrm{ss}} = 2\pi f_{\mathrm{ss}},
+  \label{eq:stm-ss}
+\end{equation}
+and the tower-top side-to-side \emph{acceleration} (the analogue of the OpenFAST
+output \texttt{YawBrTAyp}) is its second derivative
+\begin{equation}
+  a_{\mathrm{ss}} = \ddot{q}_{\mathrm{ss}}
+    = g_{\mathrm{ss}}\,T_e
+      - 2\zeta_{\mathrm{ss}}\omega_{\mathrm{ss}}\,\dot{q}_{\mathrm{ss}}
+      - \omega_{\mathrm{ss}}^2\,q_{\mathrm{ss}}.
+  \label{eq:stm-ss-accel}
+\end{equation}
+Here \(T_e = P_e/(\omega_{e,\mathrm{filt}}\,\eta)\) is the same electromagnetic
+torque that drives the drivetrain equation \eqref{eq:Te}, so the driving term of
+\eqref{eq:stm-ss} carries the grid disturbance directly. The physical mechanism
+is the nacelle reaction torque: the air-gap torque \(T_e\) acts about the
+low-speed-shaft axis, and by Newton's third law the nacelle feels the equal and
+opposite reaction, which rolls it laterally and bends the tower top side to side.
+This is the same mechanism exploited by active side-to-side tower-damping
+controllers and by ROSCO's Tower Resonance Avoidance logic, both of which
+modulate generator torque to influence tower motion.
+
+The fore-aft displacement \(q_{\mathrm{fa}}\) mirrors \eqref{eq:stm-ss} but is
+driven by the rotor \emph{thrust} rather than the torque,
+\begin{equation}
+  \ddot{q}_{\mathrm{fa}}
+    + 2\zeta_{\mathrm{fa}}\omega_{\mathrm{fa}}\,\dot{q}_{\mathrm{fa}}
+    + \omega_{\mathrm{fa}}^2\,q_{\mathrm{fa}}
+  = g_{\mathrm{fa}}\,\hat{F}_T,
+  \qquad
+  \hat{F}_T = \frac{C_T(\lambda,\beta)\,v^2}
+                   {\big(C_T(\lambda,\beta)\,v^2\big)_0},
+  \label{eq:stm-fa}
+\end{equation}
+where \(\hat{F}_T\) is the thrust normalised by its equilibrium value (so a
+steady thrust produces no ring), \(\lambda = \omega_m R/v\) is the tip-speed
+ratio and \(\beta\) the blade pitch. The two oscillators add four states
+\(\{q_{\mathrm{ss}},\dot{q}_{\mathrm{ss}},q_{\mathrm{fa}},\dot{q}_{\mathrm{fa}}\}\)
+to the model.
+
+\subsection{Forward coupling: the tower does not react back}
+\label{subsec:stm-forward}
+
+The two modal oscillators are driven by the drivetrain/aerodynamic state
+(\(T_e\) for SS, \(\hat{F}_T\) for FA) but do \emph{not} feed back onto the
+drivetrain or the electrical network: they are pure output DOFs. This
+one-directional (forward) coupling is deliberate and has two consequences. First,
+it is physically reasonable here --- the tower-top lateral acceleration is orders
+of magnitude too small to modify the air-gap torque or the delivered power.
+Second, and more usefully for the study, it means that switching a mode on or off
+(\(\texttt{ss\_enable}\), \(\texttt{fa\_enable}\)) leaves the electrical solution
+\emph{bit-for-bit identical}. Any two runs that differ only in the tower DOFs
+therefore share exactly the same grid trajectory, so a comparison isolates the
+mechanical response without confounding electrical differences. The same holds
+for on/off comparisons of the frequency-support droop (\S\ref{sec:outer-droop}),
+which is why the droop trade-off of \S\ref{subsec:nt-tradeoff} is clean.
+
+\subsection{Calibration against the OpenFAST-FMU}
+\label{subsec:stm-calibration}
+
+The modal frequencies and damping ratios are taken from, and the coupling gains
+calibrated against, the high-fidelity OpenFAST model, so that the reduced model
+reproduces the FMU tower response quantitatively rather than only qualitatively.
+
+\paragraph{Frequencies.}
+The IEA 15\,MW monopile first tower modes sit at
+\(f_{\mathrm{ss}} = \SI{0.234}{\hertz}\) (side-to-side) and
+\(f_{\mathrm{fa}} = \SI{0.235}{\hertz}\) (fore-aft); the two are nearly
+degenerate in frequency, which makes the \emph{drive path}, not the frequency,
+the discriminator between them (\S\ref{sec:shaft-excitation}).
+
+\paragraph{Side-to-side gain \(g_{\mathrm{ss}}\).}
+For the oscillator \eqref{eq:stm-ss} driven at its natural frequency, the
+steady-state acceleration amplitude follows from the transfer function of
+\eqref{eq:stm-ss-accel} at \(\omega=\omega_{\mathrm{ss}}\),
+\begin{equation}
+  \big|a_{\mathrm{ss}}(\omega_{\mathrm{ss}})\big|
+  = \frac{g_{\mathrm{ss}}}{2\zeta_{\mathrm{ss}}}\,\big|\Delta T_e\big|.
+  \label{eq:stm-gss}
+\end{equation}
+The OpenFAST-FMU torque sweep (\S\ref{sec:tower-ss-resonance}) measured a peak
+side-to-side acceleration of \(\approx\SI{0.259}{\metre\per\second\squared}\)
+(\texttt{YawBrTAyp} at \SI{0.234}{\hertz}) for a \(\pm\SI{10}{\percent}\)
+generator-torque modulation (\(|\Delta T_e|\approx\SI{0.10}{\pu}\)) at
+\(\zeta_{\mathrm{ss}}\approx\num{0.05}\). Solving \eqref{eq:stm-gss} gives a
+first estimate \(g_{\mathrm{ss}}\approx\SI{0.26}{\metre\per\second\squared\per\pu}\),
+which is then refined by an equivalent reduced-model torque sweep
+(\texttt{sweep\_ss\_reduced.py}) that injects the same \(\pm\SI{10}{\percent}\)
+modulation on \(T_e\) and matches the FMU peak, yielding the calibrated default
+\begin{equation}
+  g_{\mathrm{ss}} = \SI{0.2684}{\metre\per\second\squared\per\pu},
+  \qquad
+  \zeta_{\mathrm{ss}} = \num{0.05}.
+  \label{eq:stm-gss-value}
+\end{equation}
+
+\paragraph{Fore-aft gain and effective damping.}
+The fore-aft gain \(g_{\mathrm{fa}} = \SI{0.102}{\metre\per\second\squared\per\pu}\)
+and effective damping \(\zeta_{\mathrm{fa}} = \num{0.0125}\) are calibrated the
+same way, from the FMU fore-aft ring-down and forced-response at
+\(v = \SI{11}{\metre\per\second}\). The damping is termed \emph{effective}
+because the strong aerodynamic damping of the fore-aft mode --- when the tower
+top moves downwind the rotor sees less wind, the thrust drops and opposes the
+motion --- is folded into a single modal \(\zeta_{\mathrm{fa}}\) rather than
+resolved explicitly. Notably \(\zeta_{\mathrm{fa}}\) here is \emph{small}: the
+reason the fore-aft mode is not the resonance-prone one is not heavy damping but
+the weak thrust drive path (\S\ref{sec:shaft-excitation}).
+
+Table~\ref{tab:stm-params} collects the calibrated modal parameters. With them
+the reduced model reproduces the FMU side-to-side resonance peak to within a few
+percent (\S\ref{sec:new-tests}) while running in real time against the full
+LEOGO network.
+
+\begin{table}[t]
+  \centering
+  \caption{Calibrated tower modal parameters of \texttt{WindTurbineTower},
+  taken from / matched to the OpenFAST-FMU IEA 15\,MW monopile model.}
+  \label{tab:stm-params}
+  \begin{tabular}{lccc}
+    \toprule
+    Mode & \(f\) [\si{\hertz}] & \(\zeta\) [--] &
+      \(g\) [\si{\metre\per\second\squared\per\pu}] \\
+    \midrule
+    Side-to-side (torque-driven) & 0.234 & 0.050 & 0.2684 \\
+    Fore-aft (thrust-driven)     & 0.235 & 0.0125 & 0.102 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Ring-down time constant}
+\label{subsec:stm-tau}
+
+A consequence of the light side-to-side damping worth stating explicitly, since
+it recurs in the scenarios of \S\ref{sec:new-tests}, is the modal decay time
+constant
+\begin{equation}
+  \tau_{\mathrm{ss}} = \frac{1}{\zeta_{\mathrm{ss}}\,\omega_{\mathrm{ss}}}
+    = \frac{1}{0.05\cdot 2\pi\cdot 0.234}
+    \approx \SI{13.6}{\second}.
+  \label{eq:stm-tau}
+\end{equation}
+A broadband ``kick'' (a load step) therefore excites a free side-to-side
+ring-down that decays with \(\tau_{\mathrm{ss}}\approx\SI{13.6}{\second}\),
+whereas a sustained sinusoidal drive at \(f_{\mathrm{ss}}\) builds the mode up
+over \(\sim 3\text{--}4\,\tau_{\mathrm{ss}}\approx\SI{45}{\second}\) to a large
+steady amplitude (\S\ref{subsec:nt-resonance}). The distinction between the two
+--- ring-\emph{down} versus build-\emph{up} --- is the clearest experimental
+signature of resonant versus broadband excitation.
+
+\subsection*{Sources}
+\label{subsec:stm-sources}
+
+\begin{itemize}
+  \item Modal (assumed-mode / Rayleigh--Ritz) tower-bending DOFs, as used by
+        ElastoDyn/OpenFAST: Jonkman (2007), \emph{Dynamics Modeling and Loads
+        Analysis of an Offshore Floating Wind Turbine}, NREL/TP-500-41958,
+        \href{https://www.nrel.gov/docs/fy08osti/41958.pdf}{nrel.gov/docs/fy08osti/41958.pdf};
+        Jonkman \& Buhl (2005), \emph{FAST User's Guide}, NREL/EL-500-38230,
+        \href{https://www.nrel.gov/docs/fy06osti/38230.pdf}{nrel.gov/docs/fy06osti/38230.pdf};
+        OpenFAST documentation, \href{https://openfast.readthedocs.io/}{openfast.readthedocs.io}.
+  \item IEA \SI{15}{\mega\watt} reference turbine (modal frequencies, rotor and
+        tower data): Gaertner et al.\ (2020), \emph{Definition of the IEA
+        15-Megawatt Offshore Reference Wind Turbine}, NREL/TP-5000-75698,
+        \href{https://www.nrel.gov/docs/fy20osti/75698.pdf}{nrel.gov/docs/fy20osti/75698.pdf};
+        model repository
+        \href{https://github.com/IEAWindTask37/IEA-15-240-RWT}{github.com/IEAWindTask37/IEA-15-240-RWT}.
+  \item Fore-aft aerodynamic tower damping (the ``aerodynamic damper''):
+        K\"uhn (2001), \emph{Dynamics and Design Optimisation of Offshore Wind
+        Energy Conversion Systems}, PhD thesis, TU Delft; Salzmann \& van der
+        Tempel (2005), \emph{Aerodynamic damping in the design of support
+        structures for offshore wind turbines}, Copenhagen Offshore Wind
+        Conference.
+\end{itemize}
