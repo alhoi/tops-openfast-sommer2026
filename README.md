@@ -2,10 +2,23 @@
 
 Simulations of the **electrical network** (power flow, buses, lines, UIC converter, time-domain integration) run in [TOPS](https://arxiv.org/abs/2101.02937). This repository adds the **wind turbine models** and case studies: a baseline wind turbine model fully within TOPS, and a coupled wind turbine model using co-simulation with OpenFAST through an FMU. An impedance identification tool has also been implemented to analyze and compare the two models.
 
+> **Frequency support and electro-mechanical interactions:** the turbine is also
+> given droop and virtual-inertia frequency support on the LEOGO islanded
+> offshore grid, and a set of studies characterises the resulting
+> electro-mechanical interactions (tower side-to-side resonance, drivetrain
+> torsion) together with a notch-filter mitigation. See
+> **[`README_frequency_support.md`](README_frequency_support.md)** for the full
+> documentation, models, driver flags and how to run each study.
+
 | Model | Description | Use case |
 |-------|-------------|----------|
 | **Baseline** | Two-mass drivetrain, MPT/Cp tables, simplified pitch control — all in TOPS | Faster runs for standard power system studies |
 | **Coupled** | OpenFAST (aero-servo-elastic simulation) co-simulated with TOPS | Full wind turbine dynamics for more intricate studies |
+
+> Grid-frequency support (droop / virtual inertia), the reduced tower modes
+> (side-to-side and fore-aft), and the electro-mechanical interaction studies are
+> documented separately in
+> [`README_frequency_support.md`](README_frequency_support.md).
 
 ## Setup
 
