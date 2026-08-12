@@ -15,7 +15,9 @@ arise, together with a simple filtering-based mitigation.
 Two complementary wind-turbine models are used. A fast **reduced-order model**
 built entirely in TOPS (with droop support and reduced tower modes, calibrated
 against OpenFAST) was developed first, and the **high-fidelity OpenFAST FMU** is
-used for the detailed co-simulation studies below.
+used for the detailed co-simulation studies below. The reduced model is
+described in the next section; everything after it (setup, driver, flags and
+studies) concerns the OpenFAST FMU co-simulation.
 
 | Study | What it shows |
 | --- | --- |
@@ -35,6 +37,14 @@ calibrated against the OpenFAST FMU.
   aerodynamic tables, PI pitch control and speed low-pass filters (10 states).
 - `src/tops_openfast/dyn_models/windturbine_tower.py` — `WindTurbineTower`:
   extends `WindTurbine` with droop frequency support and reduced tower modes.
+
+**State variables.** `WindTurbine` has 10 states: rotor and generator speed
+(`omega_m`, `omega_e`), their angles (`theta_m`, `theta_e`), blade pitch and the
+pitch-PI integrator (`pitch_angle`, `pitch_PI_integral_state`), and two speed
+low-pass filters (`omega_m_filt`, `omega_m_filt_dot`, `omega_e_filt`,
+`omega_e_filt_dot`). `WindTurbineTower` adds **four modal tower states**:
+`q_ss`, `q_ss_dot` (side-to-side displacement and velocity) and `q_fa`,
+`q_fa_dot` (fore-aft displacement and velocity).
 
 **Droop frequency support** (`_droop_command`) is a simple, stateless linear
 droop with a de-loading reserve:
@@ -149,7 +159,10 @@ There are three places to configure a run, depending on the model:
    `CASES`, output paths). They build the driver command lines for you and are
    resumable.
 
-## Core components
+## Core components (OpenFAST FMU model)
+
+Everything from here on concerns the **high-fidelity OpenFAST FMU**
+co-simulation (not the reduced model above).
 
 - `casestudies/dyn_sim/test_WT_LEOGO_FMU_sim.py` — main driver. Couples the
   OpenFAST/ROSCO FMU to the LEOGO grid (TOPS + `FMUtoUICdrivetrain` + UIC),
