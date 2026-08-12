@@ -187,6 +187,38 @@ There are three places to configure a run, depending on the model:
 | `--load-sine-mean`, `--load-sine-amplitude`, `--load-sine-freq-hz` | Sustained sinusoidal process-load (slug-flow) disturbance. |
 | `--t-end`, `--out`, `--zmq-log` | Run length and output CSV paths. |
 
+### Example: one fully-specified run
+
+A single gas-turbine-trip case with every support feature enabled (droop,
+virtual inertia, frequency low-pass, tower notch, de-load reserve and an
+over-rating burst cap). Copy-paste as one line:
+
+```
+python casestudies/dyn_sim/test_WT_LEOGO_FMU_sim.py --fmu debug --zmq-grid --fix-leogo-xqt --wt-pref-mw 12.88 --droop-nm-per-hz 2e7 --inertia-nm-s-per-hz 8e7 --freq-lpf-hz 2.0 --freq-lpf-order 2 --support-notch-hz 0.233 --support-notch-q 8 --support-max-nm 3e6 --support-max-over-nm -3e6 --deload-nm 1.15e7 --support-start 10 --load-step-mw 15.8 --event-time 20 --event-duration 400 --load-ramp-on-s 3 --t-end 60 --out results/em_interaction_sweep/example_gt_trip.csv --zmq-log results/em_interaction_sweep/example_gt_trip_zmq.csv
+```
+
+What each group does:
+
+- `--fmu debug` — high-fidelity FMU that also outputs the tower side-to-side
+  acceleration (`fmu_YawBrTAyp`). Swap for `--fmu fast` for a quicker run
+  without that output.
+- `--zmq-grid --fix-leogo-xqt` — enable the grid-frequency support loop and damp
+  the LEOGO ~5.3 Hz q-axis artifact mode.
+- `--wt-pref-mw 12.88` — Region-3 operating point so the grid initialises at 50 Hz.
+- `--droop-nm-per-hz 2e7 --inertia-nm-s-per-hz 8e7` — droop and virtual inertia.
+- `--freq-lpf-hz 2.0 --freq-lpf-order 2` — low-pass on the frequency measurement.
+- `--support-notch-hz 0.233 --support-notch-q 8` — notch at the tower side-to-side mode.
+- `--support-max-nm 3e6 --support-max-over-nm -3e6` — torque clip plus the
+  asymmetric over-rating burst cap.
+- `--deload-nm 1.15e7 --support-start 10` — standing de-load reserve; support ramps in at t = 10 s.
+- `--load-step-mw 15.8 --event-time 20 --event-duration 400 --load-ramp-on-s 3` —
+  the gas-turbine trip (15.8 MW deficit at t = 20 s, ramped over 3 s, held for the rest of the run).
+- `--t-end 60 --out … --zmq-log …` — 60 s run and the output / ZMQ-log CSV paths.
+
+To get a *reference* run with no support, set `--droop-nm-per-hz 0
+--inertia-nm-s-per-hz 0` (or drop `--zmq-grid`). To turn the notch off, use
+`--support-notch-hz 0`.
+
 ## Running the studies
 
 All studies write under `results/em_interaction_sweep/`. Most runner scripts are
